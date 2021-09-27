@@ -1,0 +1,17 @@
+#+title: Auto Color
+
+This is a library which automatically generates color themes based on the user's background image.
+
+I'm going to use this Wheel Reinvention Jam as an excuse to work on a project which feels frivolous, but should come in handy for prettifying future projects.
+
+The project is a C library with a basic command-line interface. The library looks at the user's current desktop background and picks some number of unique colors from that background.
+
+It then outputs the color values selected. When included in a C/C++ project, the color values can be used to theme the application to match the user's background automatically.
+
+My inspiration for this project was from one of my [[https://macoy.me/code/macoy/auto-base16-theme/][previous projects]], which creates color schemes for Emacs:
+[[https://macoy.me/code/macoy/auto-base16-theme/media/branch/master/images/Example4.jpg]]
+
+This project is a reinvention of that past project. This new version solves several problems:
+- *Low dependencies.* My previous implementation relied on [[https://github.com/thefryscorer/schemer2][schemer2]], which is written in Go, and my color processor was written in Python. These two languages require pulling in a lot more dependencies than a tiny C library, and cannot be embedded in C/C++ applications
+- *Automatic.* I've found I enjoy themes which match my desktop most, but previous tools require manual steps to make this happen. This project will be easily embeddable and automatically scrape colors off the user's background
+- *First-class Windows support.* I'm committed to making this tool work on Windows, which tends to get less love from the FOSS community (in part because it's objectively less theme-able)

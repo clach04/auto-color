@@ -15,4 +15,4 @@ CAKELISP=./Dependencies/cakelisp/bin/cakelisp
 
 $CAKELISP --execute --verbose-processes \
 		  src/Config_Linux.cake \
-		  src/AutoColor.cake || exit $?
+		  src/AutoColorCLI.cake || exit $?

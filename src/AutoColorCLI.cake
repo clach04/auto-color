@@ -1,7 +1,34 @@
 (import "AutoColor.cake")
 (c-import "<stdio.h>")
 
+(var g-copyright-string (* (const char))
+  #"#Auto Color
+Created by Macoy Madson <macoy@macoy.me>.
+https://macoy.me/code/macoy/file-helper
+Copyright (c) 2021 Macoy Madson.
+
+Auto Color is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Auto Color is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Auto Color.  If not, see <https://www.gnu.org/licenses/>.#"#)
+
+;; (defun-local print-help ()
+;;   (fprintf stderr "Expected filename\n"))
+
 (defun main (num-arguments int arguments ([] (* char)) &return int)
-  (fprintf stderr "Hello, world!\n")
+  ;; (unless (> 1 num-arguments)
+  ;;   (print-help)
+  ;;   (return 1))
+  (fprintf stderr "%s\n" g-copyright-string)
   (auto-color-pick-from-current-background)
   (return 0))
+
+(set-cakelisp-option executable-output "auto-color")

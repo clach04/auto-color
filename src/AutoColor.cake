@@ -9,7 +9,7 @@
   (add-c-search-directory-module "/usr/include/glib-2.0")
   (add-c-search-directory-module "/usr/lib/x86_64-linux-gnu/glib-2.0/include")
   (c-import "gio/gio.h")
-  (add-library-dependency "glib-2.0" "gio-2.0")
+  (add-library-dependency "glib-2.0" "gio-2.0" "gobject-2.0")
 
   (defun-local auto-color-get-current-background-filename (error-string (* (* (const char)))
                                                            &return (* (const char)))
@@ -20,7 +20,12 @@
     (var background (* gchar) (g_settings_get_string g-settings "picture-uri"))
     (unless background
       (set (deref error-string) "Unable to get picture-uri from org.gnome.desktop.background")
+      (g_object_unref g-settings)
+      (set g-settings null)
       (return null))
+
+    (g_object_unref g-settings)
+    (set g-settings null)
 
     (var file-uri (* (const char)) "file://")
     (var file-uri-prefix-length size_t (strlen file-uri))
@@ -28,33 +33,30 @@
       (set (deref error-string) "Unable to process picture-uri: uri type not supported")
       (return null))
 
-    (set background (+ background file-uri-prefix-length))
+    (set background (strdup (+ background file-uri-prefix-length)))
     (return background))))
 
-(defun auto-color-pick-from-file (image-to-load (* (const char)) &return bool)
-  (var width int 0)
-  (var height int 0)
+(defstruct-local auto-color-image
+  width int
+  height int
+  pixel-data (* (unsigned char)))
+
+(defun-local auto-color-image-destroy (image-data (* auto-color-image))
+  (stbi_image_free (path image-data > pixel-data)))
+
+(defun-local auto-color-load-image (image-to-load (* (const char))
+                                    image-data-out (* auto-color-image) &return bool)
   (var num-pixel-components int 0)
   (var num-desired-channels int 3)
   (var pixel-data (* (unsigned char))
-    (stbi_load image-to-load (addr width) (addr height) (addr num-pixel-components)
-               num-desired-channels))
+    (stbi_load image-to-load
+               (addr (path image-data-out > width)) (addr (path image-data-out > height))
+               (addr num-pixel-components) num-desired-channels))
   (unless pixel-data
     (fprintf stderr "error: failed to load %s with message: %s\n" image-to-load
              (stbi_failure_reason))
     (return false))
-
-  (fprintf stderr "size of %s: %dx%d\n" image-to-load width height)
-    (fprintf stderr "num components in %s: %d\n" image-to-load num-pixel-components)
-    (fprintf stderr "first three pixels:\n")
-    (each-in-range 3 i
-      (var rgb-components (* (unsigned char)) (addr (at (* i 3) pixel-data)))
-      (fprintf stderr "[%d] %d %d %d\n"
-               i
-               (at 0 rgb-components)
-               (at 1 rgb-components)
-               (at 2 rgb-components)))
-
+  (set (path image-data-out > pixel-data) pixel-data)
   (return true))
 
 (defun auto-color-pick-from-current-background (&return bool)
@@ -66,4 +68,11 @@
     (return false))
   (fprintf stderr "\nPicking colors from '%s'\n" background-filename)
 
-  (return (auto-color-pick-from-file background-filename)))
+  (var image-data auto-color-image (array 0))
+  (unless (auto-color-load-image background-filename (addr image-data))
+    (free (type-cast background-filename (* void)))
+    (return false))
+
+  (auto-color-image-destroy (addr image-data))
+  (free (type-cast background-filename (* void)))
+  (return true))

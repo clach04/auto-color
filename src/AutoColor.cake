@@ -74,7 +74,7 @@
 (def-type-alias auto-color-color ([] 3 (unsigned char)))
 
 (defun-local auto-color-pick-colors-by-threshold (image-data (* auto-color-image)
-                                                  colors-out (* auto-color-color)
+                                                  color-palette-out (* auto-color-color)
                                                   num-colors-requested (unsigned char))
   (var color-samples ([] 512 auto-color-color))
 
@@ -116,23 +116,46 @@
 
   ;; This isn't exactly equal to the color-samples array size due to the even sample distribution
   (var num-samples int (- current-sample-write color-samples))
-  (fprintf stderr "Sampled %d pixels" num-samples)
+  (fprintf stderr "Sampled %d pixels\n" num-samples)
 
   (var num-distinct-colors int 0)
+  ;; TODO Dynamically adjust threshold based on whether we found enough colors?
+  (var distinctness-threshold int 10)
   ;; Do color threshold selection
   (each-in-range num-samples sample-index
     (var is-distinct bool true)
+    ;; TODO Add brightness/darkness filter like schemer2?
     (each-in-range num-distinct-colors distinct-color-index
-      (set is-distinct false)
-      (break))
+      ;; Use int to prevent underflow
+      (var color-difference ([] 3 int))
+      (each-in-range 3 i
+        (set (at i color-difference)
+             (abs (- (type-cast (at sample-index i color-samples) int)
+                     (type-cast (at distinct-color-index i color-palette-out) int)))))
+      (var total-difference int 0)
+      (each-in-range 3 i
+        (set total-difference (+ total-difference (at i color-difference))))
+      (unless (>= total-difference distinctness-threshold)
+        (set is-distinct false)
+        (break)))
     (unless is-distinct ;; Already represented
       (continue))
+
+    ;; Color is distinct
+    (each-in-range 3 i
+      (set (at num-distinct-colors i color-palette-out)
+           (at sample-index i color-samples)))
 
     (incr num-distinct-colors)
     ;; TODO: Consider what to do to not bias color selection to the first samples. Shuffle pixels?
     ;; Evict distinct colors randomly? Pick more colors than requested, then randomly narrow?
     (when (>= num-distinct-colors num-colors-requested)
-      (break))))
+      (break)))
+
+  (each-in-range num-distinct-colors i
+    (fprintf stderr "%d %d %d\n" (at i 0 color-palette-out)
+             (at i 1 color-palette-out)
+             (at i 2 color-palette-out))))
 
 ;;
 ;; Interface

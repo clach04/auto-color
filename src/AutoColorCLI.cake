@@ -18,7 +18,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Auto Color.  If not, see <https://www.gnu.org/licenses/>.#"#)
+along with Auto Color.  If not, see <https://www.gnu.org/licenses/>.
+
+Uses color conversion functions with the following preamble:
+Ported by Renaud Bédard (@renaudbedard) from original code from Tanner Helland:
+http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+Color space functions translated from HLSL versions on Chilli Ant (by Ian Taylor):
+http://www.chilliant.com/rgb2hsv.html
+Licensed and released under Creative Commons 3.0 Attribution:
+https://creativecommons.org/licenses/by/3.0/
+Copied from https://github.com/mixaal/imageprocessor.
+Modified by converting to Cakelisp by Macoy Madson.#"#)
 
 ;; (defun-local print-help ()
 ;;   (fprintf stderr "Expected filename\n"))

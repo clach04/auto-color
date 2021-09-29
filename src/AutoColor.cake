@@ -69,17 +69,116 @@
   (return true))
 
 ;;
+;; Color conversion
+;;
+
+(def-type-alias auto-color ([] 3 (unsigned char)))
+(defstruct auto-color-struct
+  x (unsigned char)
+  y (unsigned char)
+  z (unsigned char))
+
+;; Copied from HSL
+(defun-local auto-color-get-lightness (color auto-color &return (unsigned char))
+  (var max-component int 0)
+  (var min-component int 255)
+  (each-in-range 3 i
+    (when (> (at i color) max-component)
+      (set max-component (at i color)))
+    (when (< (at i color) min-component)
+      (set min-component (at i color))))
+  (return (/ (+ max-component min-component) 2)))
+
+;; ported by Renaud Bédard (@renaudbedard) from original code from Tanner Helland
+;; http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+;; color space functions translated from HLSL versions on Chilli Ant (by Ian Taylor)
+;; http://www.chilliant.com/rgb2hsv.html
+;; licensed and released under Creative Commons 3.0 Attribution
+;; https://creativecommons.org/licenses/by/3.0/
+;; Copied from https://github.com/mixaal/imageprocessor.
+;; Modified by converting to Cakelisp by Macoy Madson
+(defun-local auto-color-clamp-zero-to-one (value float &return float)
+  (when (< value 0.f) (return 0.f))
+  (when (> value 1.0f) (return 1.0f))
+  (return value))
+
+(defstruct auto-color-float
+  x float
+  y float
+  z float)
+
+(defun-local auto-color-float-to-char (color auto-color-float &return auto-color-struct)
+  (var converted auto-color-struct
+    (array (type-cast (round (* (auto-color-clamp-zero-to-one (field color x)) 255)) (unsigned char))
+           (type-cast (round (* (auto-color-clamp-zero-to-one (field color y)) 255)) (unsigned char))
+           (type-cast (round (* (auto-color-clamp-zero-to-one (field color z)) 255)) (unsigned char))))
+  (return converted))
+
+(defun-local auto-color-hue-to-rgb (hue float &return auto-color-float)
+  (var r float (auto-color-clamp-zero-to-one (- (fabs (- (* hue 6.0f) 3.0f)) 1.0f)))
+  (var g float (auto-color-clamp-zero-to-one (- 2.0f (fabs (- (* hue 6.0f) 2.0f)))))
+  (var b float (auto-color-clamp-zero-to-one (- 2.0f (fabs (- (* hue 6.0f) 4.0f)))))
+  (var rgb auto-color-float (array r g b))
+  (return rgb))
+
+(defun-local auto-color-hsl-to-rgb (hsl auto-color-float &return auto-color-float)
+    (var rgb auto-color-float (auto-color-hue-to-rgb (field hsl x)))
+    (var c float (* (- 1.0f (fabs (- (* 2.0f (field hsl z)) 1.0f))) (field hsl y)))
+    (set (field rgb x) (+ (* (- (field rgb x) 0.5f) c) (field hsl z)))
+    (set (field rgb y) (+ (* (- (field rgb y) 0.5f) c) (field hsl z)))
+    (set (field rgb z) (+ (* (- (field rgb z) 0.5f) c) (field hsl z)))
+
+    (return rgb))
+
+;; vec3 auto-color-rgb-to-hcv(vec3 RGB)
+;; {
+;;     // Based on work by Sam Hocevar and Emil Persson
+;;     vec4 P, Q;
+;;     if (RGB.y < RGB.z) {
+;;        P.x = RGB.z;
+;;        P.y = RGB.y;
+;;        P.z = -1.0f;
+;;        P.w = 2.0f/3.0f;
+;;     } else {
+;;        P.x = RGB.y;
+;;        P.y = RGB.z;
+;;        P.z = 0.0f;
+;;        P.w = -1.0f/3.0f;
+;;     }
+;;     if (RGB.x < P.x) {
+;;        Q.x = P.x;
+;;        Q.y = P.y;
+;;        Q.z = P.w;
+;;        Q.w = RGB.x;
+;;     } else {
+;;        Q.x = RGB.x;
+;;        Q.y = P.y;
+;;        Q.z = P.z;
+;;        Q.w = P.x;
+;;     }
+;;     float C = Q.x - min(Q.w, Q.y);
+;;     float H = fabs((Q.w - Q.y) / (6.0f * C + EPSILON) + Q.z);
+;;     return vec3_init(H, C, Q.x);
+;; }
+
+;; vec3 auto-color-rgb-to-hsl(vec3 RGB)
+;; {
+;;     vec3 HCV = auto-color-rgb-to-hcv(RGB);
+;;     float L = HCV.z - HCV.y * 0.5f;
+;;     float S = HCV.y / (1.0f - fabs(L * 2.0f - 1.0f) + EPSILON);
+;;     return vec3_init(HCV.x, S, L);
+;; }
+
+;;
 ;; Color selection
 ;;
 
-(def-type-alias auto-color-color ([] 3 (unsigned char)))
-
 (defun-local auto-color-pick-colors-by-threshold (image-data (* auto-color-image)
-                                                  color-palette-out (* auto-color-color)
+                                                  color-palette-out (* auto-color)
                                                   num-colors-requested (unsigned char)
                                                   ;; Num colors attained
                                                   &return (unsigned char))
-  (var color-samples ([] 512 auto-color-color))
+  (var color-samples ([] 512 auto-color))
 
   ;; Dynamically adjust sampling based on resolution to keep a somewhat constant number of samples
   (var sample-skip-x int 0)
@@ -107,7 +206,7 @@
             sample-skip-x sample-skip-y
             (path image-data > width) (path image-data > height)))
 
-  (var current-sample-write (* auto-color-color) color-samples)
+  (var current-sample-write (* auto-color) color-samples)
   (c-for (var y int 0) (< y (path image-data > height)) (set y (+ y sample-skip-y))
     (c-for (var x int 0) (< x (path image-data > width)) (set x (+ x sample-skip-x))
       (var pixel-index int (* 3 (+ (* y (path image-data > width)) x)))
@@ -157,13 +256,18 @@
 
   (return num-distinct-colors))
 
+(defmacro set-color (dest any src any)
+  (tokenize-push output
+    (memcpy (token-splice dest) (token-splice src) (sizeof (type auto-color))))
+  (return true))
+
 ;; Base16 is a style of colors supported by various apps. See https://github.com/chriskempson/base16
 ;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
 ;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
 ;; different things, and still reflecting the palette.
-(defun-local auto-color-create-base16-theme-from-colors (color-palette (* auto-color-color)
+(defun-local auto-color-create-base16-theme-from-colors (color-palette (* auto-color)
                                                          num-colors-in-palette (unsigned char)
-                                                         base16-colors-out (* auto-color-color))
+                                                         base16-colors-out (* auto-color))
   (defenum auto-color-selection-method
     pick-darkest-color-force-dark-threshold
     pick-darkest-high-contrast-color-unique
@@ -208,22 +312,39 @@
      (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
             pick-high-contrast-bright-color-unique-or-random)))
 
-  (each-in-array selection-methods i
+  (var test-hsl auto-color-float (array 0.25f 0.8f 0.2f))
+  (var color-rgb auto-color-float (auto-color-hsl-to-rgb test-hsl))
+  (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
+  (fprintf stderr "%f %f %f %d %d %d\n" (field color-rgb x)
+           (field color-rgb y)
+           (field color-rgb z)
+           (field color-char-rgb x)
+           (field color-char-rgb y)
+           (field color-char-rgb z))
+
+  (each-in-array selection-methods current-base
     (var selection-method auto-color-selection-method
-      (field (at i selection-methods) method))
+      (field (at current-base selection-methods) method))
     (cond
       ((= pick-darkest-color-force-dark-threshold selection-method)
-       (ignore))
+       (var darkest-color auto-color (array 255 255 255))
+       (var darkest-color-lightness (unsigned char) 255)
+       (each-in-range num-colors-in-palette i
+         (var color-lightness (unsigned char) (auto-color-get-lightness (at i color-palette)))
+         (when (< color-lightness darkest-color-lightness)
+           (set darkest-color-lightness color-lightness)
+           (set-color darkest-color (at i color-palette))))
+       (set-color (at current-base base16-colors-out) darkest-color))
       ((= pick-darkest-high-contrast-color-unique selection-method)
        (ignore))
       ((= pick-high-contrast-bright-color-unique-or-random selection-method)
        (ignore)))
 
-    (fprintf stderr "#%02x%02x%02x\t%s\n"
-             (at 0 (at i base16-colors-out))
-             (at 1 (at i base16-colors-out))
-             (at 2 (at i base16-colors-out))
-             (field (at i selection-methods) description))))
+    (fprintf stderr "#%02x%02x%02x\t\t%s\n"
+             (at 0 (at current-base base16-colors-out))
+             (at 1 (at current-base base16-colors-out))
+             (at 2 (at current-base base16-colors-out))
+             (field (at current-base selection-methods) description))))
 
 ;;
 ;; Interface
@@ -243,7 +364,7 @@
     (free (type-cast background-filename (* void)))
     (return false))
 
-  (var color-palette ([] 16 auto-color-color))
+  (var color-palette ([] 16 auto-color))
   (var num-colors-requested (unsigned char) (array-size color-palette))
   (var num-colors-attained (unsigned char)
     (auto-color-pick-colors-by-threshold (addr image-data) color-palette num-colors-requested))
@@ -253,7 +374,7 @@
              (at i 1 color-palette)
              (at i 2 color-palette)))
 
-  (var base16-colors ([] 16 auto-color-color))
+  (var base16-colors ([] 16 auto-color))
   (auto-color-create-base16-theme-from-colors
    color-palette num-colors-attained
    base16-colors)

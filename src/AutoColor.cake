@@ -75,7 +75,9 @@
 
 (defun-local auto-color-pick-colors-by-threshold (image-data (* auto-color-image)
                                                   color-palette-out (* auto-color-color)
-                                                  num-colors-requested (unsigned char))
+                                                  num-colors-requested (unsigned char)
+                                                  ;; Num colors attained
+                                                  &return (unsigned char))
   (var color-samples ([] 512 auto-color-color))
 
   ;; Dynamically adjust sampling based on resolution to keep a somewhat constant number of samples
@@ -120,7 +122,7 @@
 
   (var num-distinct-colors int 0)
   ;; TODO Dynamically adjust threshold based on whether we found enough colors?
-  (var distinctness-threshold int 10)
+  (var distinctness-threshold int 50)
   ;; Do color threshold selection
   (each-in-range num-samples sample-index
     (var is-distinct bool true)
@@ -152,10 +154,7 @@
     (when (>= num-distinct-colors num-colors-requested)
       (break)))
 
-  (each-in-range num-distinct-colors i
-    (fprintf stderr "%d %d %d\n" (at i 0 color-palette-out)
-             (at i 1 color-palette-out)
-             (at i 2 color-palette-out))))
+  (return num-distinct-colors))
 
 ;;
 ;; Interface
@@ -175,9 +174,14 @@
     (free (type-cast background-filename (* void)))
     (return false))
 
-  (var colors ([] 16 auto-color-color))
-  (var num-colors-requested (unsigned char) (array-size colors))
-  (auto-color-pick-colors-by-threshold (addr image-data) colors num-colors-requested)
+  (var color-palette ([] 16 auto-color-color))
+  (var num-colors-requested (unsigned char) (array-size color-palette))
+  (var num-colors-attained (unsigned char)
+    (auto-color-pick-colors-by-threshold (addr image-data) color-palette num-colors-requested))
+  (each-in-range num-colors-attained i
+    (fprintf stderr "#%02x%02x%02x\n" (at i 0 color-palette)
+             (at i 1 color-palette)
+             (at i 2 color-palette)))
 
   (auto-color-image-destroy (addr image-data))
   (free (type-cast background-filename (* void)))

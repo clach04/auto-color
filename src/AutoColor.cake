@@ -71,6 +71,7 @@
 ;;
 ;; Color selection
 ;;
+
 (def-type-alias auto-color-color ([] 3 (unsigned char)))
 
 (defun-local auto-color-pick-colors-by-threshold (image-data (* auto-color-image)
@@ -156,6 +157,74 @@
 
   (return num-distinct-colors))
 
+;; Base16 is a style of colors supported by various apps. See https://github.com/chriskempson/base16
+;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
+;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
+;; different things, and still reflecting the palette.
+(defun-local auto-color-create-base16-theme-from-colors (color-palette (* auto-color-color)
+                                                         num-colors-in-palette (unsigned char)
+                                                         base16-colors-out (* auto-color-color))
+  (defenum auto-color-selection-method
+    pick-darkest-color-force-dark-threshold
+    pick-darkest-high-contrast-color-unique
+    pick-high-contrast-bright-color-unique-or-random)
+
+  (defstruct auto-color-base16-color
+    description (* (const char))
+    method auto-color-selection-method)
+
+  (var selection-methods ([] 16 auto-color-base16-color)
+    (array
+     (array "base00 - Default Background"
+            pick-darkest-color-force-dark-threshold)
+     (array "base01 - Lighter Background (Used for status bars)"
+            pick-darkest-color-force-dark-threshold)
+     (array "base02 - Selection Background"
+            pick-darkest-color-force-dark-threshold)
+     (array "base03 - Comments, Invisibles, Line Highlighting"
+            pick-darkest-high-contrast-color-unique)
+     (array "base04 - Dark Foreground (Used for status bars)"
+            pick-darkest-high-contrast-color-unique)
+     (array "base05 - Default Foreground, Caret, Delimiters, Operators"
+            pick-darkest-high-contrast-color-unique)
+     (array "base06 - Light Foreground (Not often used)"
+            pick-darkest-color-force-dark-threshold)
+     (array "base07 - Light Background (Not often used)"
+            pick-darkest-color-force-dark-threshold)
+     (array "base08 - Variables, XML Tags, Markup Link Text, Markup Lists, Diff Deleted"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base09 - Integers, Boolean, Constants, XML Attributes, Markup Link Url"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0A - Classes, Markup Bold, Search Text Background"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0B - Strings, Inherited Class, Markup Code, Diff Inserted"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0C - Support, Regular Expressions, Escape Characters, Markup Quotes"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0D - Functions, Methods, Attribute IDs, Headings"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0E - Keywords, Storage, Selector, Markup Italic, Diff Changed"
+            pick-high-contrast-bright-color-unique-or-random)
+     (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
+            pick-high-contrast-bright-color-unique-or-random)))
+
+  (each-in-array selection-methods i
+    (var selection-method auto-color-selection-method
+      (field (at i selection-methods) method))
+    (cond
+      ((= pick-darkest-color-force-dark-threshold selection-method)
+       (ignore))
+      ((= pick-darkest-high-contrast-color-unique selection-method)
+       (ignore))
+      ((= pick-high-contrast-bright-color-unique-or-random selection-method)
+       (ignore)))
+
+    (fprintf stderr "#%02x%02x%02x\t%s\n"
+             (at 0 (at i base16-colors-out))
+             (at 1 (at i base16-colors-out))
+             (at 2 (at i base16-colors-out))
+             (field (at i selection-methods) description))))
+
 ;;
 ;; Interface
 ;;
@@ -178,10 +247,16 @@
   (var num-colors-requested (unsigned char) (array-size color-palette))
   (var num-colors-attained (unsigned char)
     (auto-color-pick-colors-by-threshold (addr image-data) color-palette num-colors-requested))
+
   (each-in-range num-colors-attained i
     (fprintf stderr "#%02x%02x%02x\n" (at i 0 color-palette)
              (at i 1 color-palette)
              (at i 2 color-palette)))
+
+  (var base16-colors ([] 16 auto-color-color))
+  (auto-color-create-base16-theme-from-colors
+   color-palette num-colors-attained
+   base16-colors)
 
   (auto-color-image-destroy (addr image-data))
   (free (type-cast background-filename (* void)))

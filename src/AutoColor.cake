@@ -109,9 +109,9 @@
   (return value))
 
 (defstruct auto-color-float
-  x float
-  y float
-  z float)
+  x float  ;; hue               red
+  y float  ;; saturation   or   green
+  z float) ;; lightness         blue
 
 (defun-local auto-color-float-to-char (color auto-color-float &return auto-color-struct)
   (var converted auto-color-struct
@@ -324,8 +324,11 @@ Back to HSL: %3d %3d %3d\n"
 ;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
 ;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
 ;; different things, and still reflecting the palette.
+;; work-space should have length equal to num-colors-in-palette. This exists so this function
+;; doesn't have to allocate memory.
 (defun-local auto-color-create-base16-theme-from-colors (color-palette (* auto-color)
                                                          num-colors-in-palette (unsigned char)
+                                                         work-space (* auto-color-float)
                                                          base16-colors-out (* auto-color))
   (defenum auto-color-selection-method
     pick-darkest-color-force-dark-threshold
@@ -378,52 +381,53 @@ Back to HSL: %3d %3d %3d\n"
             pick-high-contrast-bright-color-unique-or-random)))
 
   ;; Need to increase size if the dark backgrounds requests increase
-  (var darkest-colors-hsl ([] 6 auto-color-float) (array 0))
-  (each-in-array darkest-colors-hsl i
-    ;; TODO LEFT OFF Next this is wrong: pick the 6 darkest colors, not the first six colors in palette
-    (when (>= i num-colors-in-palette) ;; Should only happen with very small palettes
-      (break))
+  (each-in-range num-colors-in-palette i
     (var color-to-float auto-color-float
       (auto-color-char-to-float (at i color-palette)))
-    (set (at i darkest-colors-hsl)
+    (set (at i work-space)
          (auto-color-rgb-to-hsl color-to-float)))
 
-  (qsort darkest-colors-hsl
-         (? (< num-colors-in-palette (array-size darkest-colors-hsl))
-            num-colors-in-palette (array-size darkest-colors-hsl))
-         (sizeof (at 0 darkest-colors-hsl))
+  (qsort work-space
+         num-colors-in-palette
+         (sizeof (at 0 work-space))
          auto-color-sort-hsl-color-float-darkest-first)
 
   (fprintf stderr "\nColors by lightness, darkest first:\n")
-  (each-in-array darkest-colors-hsl i
-    (var color-rgb auto-color-float (auto-color-hsl-to-rgb (at i darkest-colors-hsl)))
+  (each-in-range num-colors-in-palette i
+    (var color-rgb auto-color-float (auto-color-hsl-to-rgb (at i work-space)))
     (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
-    (fprintf stderr "#%02x%02x%02x\n"
+    (fprintf stderr "#%02x%02x%02x\t\t%f lightness\n"
              (field color-char-rgb x)
              (field color-char-rgb y)
-             (field color-char-rgb z)))
+             (field color-char-rgb z)
+             (field (at i work-space) z)))
   (fprintf stderr "\n")
 
   (var next-unique-dark-color-index (unsigned char) 0)
+  (var background-lightness float -1.f)
 
   (each-in-array selection-methods current-base
     (var selection-method auto-color-selection-method
       (field (at current-base selection-methods) method))
     (cond
       ((= pick-darkest-color-force-dark-threshold selection-method)
-       (var clamped-color auto-color-float (at next-unique-dark-color-index darkest-colors-hsl))
+       (var clamped-color auto-color-float (at next-unique-dark-color-index work-space))
        ;; Keep it darker than thresholds
-       (set (field clamped-color y)
-            (min (field clamped-color y)
+       (set (field clamped-color z)
+            (min (field clamped-color z)
                  (at next-unique-dark-color-index
                      maximum-background-brightness-thresholds)))
+       (when (= -1.f background-lightness)
+         (set background-lightness (field clamped-color z)))
        (var dark-color auto-color-struct
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr dark-color))
        (incr next-unique-dark-color-index))
+
       ((= pick-darkest-high-contrast-color-unique selection-method)
        (ignore))
+
       ((= pick-high-contrast-bright-color-unique-or-random selection-method)
        (ignore)))
 
@@ -462,8 +466,9 @@ Back to HSL: %3d %3d %3d\n"
              (at i 2 color-palette)))
 
   (var base16-colors ([] 16 auto-color))
+  (var work-space ([] 16 auto-color-float))
   (auto-color-create-base16-theme-from-colors
-   color-palette num-colors-attained
+   color-palette num-colors-attained work-space
    base16-colors)
 
   (auto-color-image-destroy (addr image-data))

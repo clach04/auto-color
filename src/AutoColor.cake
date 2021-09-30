@@ -73,6 +73,11 @@
 ;; Color conversion
 ;;
 
+(defmacro min (a any b any)
+  (tokenize-push output
+    (? (< (token-splice a) (token-splice b)) (token-splice a) (token-splice b)))
+  (return true))
+
 (def-type-alias auto-color ([] 3 (unsigned char)))
 (defstruct auto-color-struct
   x (unsigned char)
@@ -375,6 +380,7 @@ Back to HSL: %3d %3d %3d\n"
   ;; Need to increase size if the dark backgrounds requests increase
   (var darkest-colors-hsl ([] 6 auto-color-float) (array 0))
   (each-in-array darkest-colors-hsl i
+    ;; TODO LEFT OFF Next this is wrong: pick the 6 darkest colors, not the first six colors in palette
     (when (>= i num-colors-in-palette) ;; Should only happen with very small palettes
       (break))
     (var color-to-float auto-color-float
@@ -398,19 +404,24 @@ Back to HSL: %3d %3d %3d\n"
              (field color-char-rgb z)))
   (fprintf stderr "\n")
 
+  (var next-unique-dark-color-index (unsigned char) 0)
+
   (each-in-array selection-methods current-base
     (var selection-method auto-color-selection-method
       (field (at current-base selection-methods) method))
     (cond
       ((= pick-darkest-color-force-dark-threshold selection-method)
-       (var darkest-color auto-color (array 255 255 255))
-       (var darkest-color-lightness (unsigned char) 255)
-       (each-in-range num-colors-in-palette i
-         (var color-lightness (unsigned char) (auto-color-get-lightness (at i color-palette)))
-         (when (< color-lightness darkest-color-lightness)
-           (set darkest-color-lightness color-lightness)
-           (set-color darkest-color (at i color-palette))))
-       (set-color (at current-base base16-colors-out) darkest-color))
+       (var clamped-color auto-color-float (at next-unique-dark-color-index darkest-colors-hsl))
+       ;; Keep it darker than thresholds
+       (set (field clamped-color y)
+            (min (field clamped-color y)
+                 (at next-unique-dark-color-index
+                     maximum-background-brightness-thresholds)))
+       (var dark-color auto-color-struct
+         (auto-color-float-to-char
+          (auto-color-hsl-to-rgb clamped-color)))
+       (set-color (at current-base base16-colors-out) (addr dark-color))
+       (incr next-unique-dark-color-index))
       ((= pick-darkest-high-contrast-color-unique selection-method)
        (ignore))
       ((= pick-high-contrast-bright-color-unique-or-random selection-method)

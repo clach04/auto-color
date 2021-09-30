@@ -320,6 +320,18 @@ Back to HSL: %3d %3d %3d\n"
   ;; Hue
   (return (? (< (path a-value > x) (path b-value > x)) -1 1)))
 
+(defun-local auto-color-is-within-contrast-range (color auto-color-float
+                                                  background-lightness float
+                                                  minimum-contrast float
+                                                  maximum-contrast float
+                                                  &return bool)
+  (var contrast float (- (field color z) background-lightness))
+  (when (< contrast minimum-contrast)
+    (return false))
+  (when (> contrast maximum-contrast)
+    (return false))
+  (return true))
+
 ;; Base16 is a style of colors supported by various apps. See https://github.com/chriskempson/base16
 ;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
 ;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
@@ -330,6 +342,20 @@ Back to HSL: %3d %3d %3d\n"
                                                          num-colors-in-palette (unsigned char)
                                                          work-space (* auto-color-float)
                                                          base16-colors-out (* auto-color))
+  ;; Constants
+  ;; These values ensure the backgrounds are nice and dark, even if the color palette values are all bright
+  ;; Each background gets progressively lighter. We'll define a different max acceptible value for each level
+  ;; For example, the Base00 default background is darkest, so it will be clamped to 0.08 if necessary
+  (var maximum-background-brightness-thresholds ([] float) (array 0.08f 0.15f 0.2f 0.25f 0.3f 0.4f 0.45f))
+
+  ;; Foreground contrasts (i.e. text color HSL lightness - background color HSL lightness)
+  ;; These are relative values instead of ratios because you can't figure a ratio on a black background
+  (var minimum-de-emphasized-text-contrast float 0.3f)
+  (var minimum-text-contrast float 0.43f)
+  ;; So as to not have too brilliant of colors dominating parts of the theme
+  (var maximum-text-contrast float 0.65f)
+
+  ;; Types
   (defenum auto-color-selection-method
     pick-darkest-color-force-dark-threshold
     pick-darkest-high-contrast-color-unique
@@ -338,12 +364,6 @@ Back to HSL: %3d %3d %3d\n"
   (defstruct auto-color-base16-color
     description (* (const char))
     method auto-color-selection-method)
-
-  ;; Background
-  ;; These values ensure the backgrounds are nice and dark, even if the color palette values are all bright
-  ;; Each background gets progressively lighter. We'll define a different max acceptible value for each level
-  ;; For example, the Base00 default background is darkest, so it will be clamped to 0.08 if necessary
-  (var maximum-background-brightness-thresholds ([] float) (array 0.08f 0.15f 0.2f 0.25f 0.3f 0.4f 0.45f))
 
   (var selection-methods ([] 16 auto-color-base16-color)
     (array
@@ -380,6 +400,7 @@ Back to HSL: %3d %3d %3d\n"
      (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
             pick-high-contrast-bright-color-unique-or-random)))
 
+  ;; Prepare workspace by copying palette and sorting by lightness
   ;; Need to increase size if the dark backgrounds requests increase
   (each-in-range num-colors-in-palette i
     (var color-to-float auto-color-float
@@ -404,6 +425,8 @@ Back to HSL: %3d %3d %3d\n"
   (fprintf stderr "\n")
 
   (var next-unique-dark-color-index (unsigned char) 0)
+  (var next-unique-dark-foreground-color-index (unsigned char) 0)
+  (var next-unique-light-foreground-color-index (unsigned char) (- num-colors-in-palette 1))
   (var background-lightness float -1.f)
 
   (each-in-array selection-methods current-base
@@ -426,10 +449,37 @@ Back to HSL: %3d %3d %3d\n"
        (incr next-unique-dark-color-index))
 
       ((= pick-darkest-high-contrast-color-unique selection-method)
-       (ignore))
+       ;; TODO: Handle case where no color is selected
+       (each-in-interval next-unique-dark-foreground-color-index
+           num-colors-in-palette i
+         (unless (auto-color-is-within-contrast-range
+                  (at i work-space) background-lightness
+                  minimum-de-emphasized-text-contrast
+                  maximum-text-contrast)
+           (continue))
+         (var de-emphasized-color auto-color-struct
+           (auto-color-float-to-char
+            (auto-color-hsl-to-rgb (at i work-space))))
+         (set-color (at current-base base16-colors-out) (addr de-emphasized-color))
+         (set next-unique-dark-foreground-color-index (+ 1 i))
+         (break)))
 
       ((= pick-high-contrast-bright-color-unique-or-random selection-method)
-       (ignore)))
+       ;; TODO: Handle case where no color is selected
+       (each-in-closed-interval-descending next-unique-light-foreground-color-index 0 i
+         (unless (auto-color-is-within-contrast-range
+                  (at i work-space) background-lightness
+                  minimum-text-contrast
+                  maximum-text-contrast)
+           (continue))
+         (var foreground-color auto-color-struct
+           (auto-color-float-to-char
+            (auto-color-hsl-to-rgb (at i work-space))))
+         (set-color (at current-base base16-colors-out) (addr foreground-color))
+         (set next-unique-light-foreground-color-index (- i 1))
+         (when (< next-unique-light-foreground-color-index 0)
+           (set next-unique-light-foreground-color-index 0))
+         (break))))
 
     (fprintf stderr "#%02x%02x%02x\t\t%s\n"
              (at 0 (at current-base base16-colors-out))

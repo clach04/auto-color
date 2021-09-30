@@ -1,7 +1,8 @@
 (import "Image.cake"
- &comptime-only "CHelpers.cake")
-(c-import "stdio.h" ;; fprintf, strncmp
-          "math.h") ;; sqrtf
+        &comptime-only "CHelpers.cake")
+(c-import "<stdio.h>" ;; fprintf, strncmp
+          "<stdlib.h>" ;; qsort
+          "<math.h>") ;; sqrtf
 
 ;;
 ;; Background/wallpaper determination
@@ -114,6 +115,13 @@
            (type-cast (round (* (auto-color-clamp-zero-to-one (field color z)) 255)) (unsigned char))))
   (return converted))
 
+(defun-local auto-color-char-to-float (color auto-color &return auto-color-float)
+  (var converted auto-color-float
+    (array (/ (at 0 color) 255.f)
+           (/ (at 1 color) 255.f)
+           (/ (at 2 color) 255.f)))
+  (return converted))
+
 (defun-local auto-color-hue-to-rgb (hue float &return auto-color-float)
   (var r float (auto-color-clamp-zero-to-one (- (fabs (- (* hue 6.0f) 3.0f)) 1.0f)))
   (var g float (auto-color-clamp-zero-to-one (- 2.0f (fabs (- (* hue 6.0f) 2.0f)))))
@@ -122,52 +130,85 @@
   (return rgb))
 
 (defun-local auto-color-hsl-to-rgb (hsl auto-color-float &return auto-color-float)
-    (var rgb auto-color-float (auto-color-hue-to-rgb (field hsl x)))
-    (var c float (* (- 1.0f (fabs (- (* 2.0f (field hsl z)) 1.0f))) (field hsl y)))
-    (set (field rgb x) (+ (* (- (field rgb x) 0.5f) c) (field hsl z)))
-    (set (field rgb y) (+ (* (- (field rgb y) 0.5f) c) (field hsl z)))
-    (set (field rgb z) (+ (* (- (field rgb z) 0.5f) c) (field hsl z)))
+  (var rgb auto-color-float (auto-color-hue-to-rgb (field hsl x)))
+  (var c float (* (- 1.0f (fabs (- (* 2.0f (field hsl z)) 1.0f))) (field hsl y)))
+  (set (field rgb x) (+ (* (- (field rgb x) 0.5f) c) (field hsl z)))
+  (set (field rgb y) (+ (* (- (field rgb y) 0.5f) c) (field hsl z)))
+  (set (field rgb z) (+ (* (- (field rgb z) 0.5f) c) (field hsl z)))
 
-    (return rgb))
+  (return rgb))
 
-;; vec3 auto-color-rgb-to-hcv(vec3 RGB)
-;; {
-;;     // Based on work by Sam Hocevar and Emil Persson
-;;     vec4 P, Q;
-;;     if (RGB.y < RGB.z) {
-;;        P.x = RGB.z;
-;;        P.y = RGB.y;
-;;        P.z = -1.0f;
-;;        P.w = 2.0f/3.0f;
-;;     } else {
-;;        P.x = RGB.y;
-;;        P.y = RGB.z;
-;;        P.z = 0.0f;
-;;        P.w = -1.0f/3.0f;
-;;     }
-;;     if (RGB.x < P.x) {
-;;        Q.x = P.x;
-;;        Q.y = P.y;
-;;        Q.z = P.w;
-;;        Q.w = RGB.x;
-;;     } else {
-;;        Q.x = RGB.x;
-;;        Q.y = P.y;
-;;        Q.z = P.z;
-;;        Q.w = P.x;
-;;     }
-;;     float C = Q.x - min(Q.w, Q.y);
-;;     float H = fabs((Q.w - Q.y) / (6.0f * C + EPSILON) + Q.z);
-;;     return vec3_init(H, C, Q.x);
-;; }
+(var color-conversion-epsilon float 1e-10)
 
-;; vec3 auto-color-rgb-to-hsl(vec3 RGB)
-;; {
-;;     vec3 HCV = auto-color-rgb-to-hcv(RGB);
-;;     float L = HCV.z - HCV.y * 0.5f;
-;;     float S = HCV.y / (1.0f - fabs(L * 2.0f - 1.0f) + EPSILON);
-;;     return vec3_init(HCV.x, S, L);
-;; }
+(defun-local auto-color-rgb-to-hcv (rgb auto-color-float &return auto-color-float)
+  ;; Based on work by Sam Hocevar and Emil Persson
+  (defstruct color-vec4 x float y float z float w float)
+  (var p color-vec4)
+  (var q color-vec4)
+  (if (< (field rgb y) (field rgb z))
+      (scope
+       (set (field p x) (field rgb z))
+       (set (field p y) (field rgb y))
+       (set (field p z) -1.0f)
+       (set (field p w) 2.0f/3.0f))
+      (scope
+       (set (field p x) (field rgb y))
+       (set (field p y) (field rgb z))
+       (set (field p z) 0.0f)
+       (set (field p w) -1.0f/3.0f)))
+
+  (if (< (field rgb x) (field p x))
+      (scope
+       (set (field q x) (field p x))
+       (set (field q y) (field p y))
+       (set (field q z) (field p w))
+       (set (field q w) (field rgb x)))
+      (scope
+       (set (field q x) (field rgb x))
+       (set (field q y) (field p y))
+       (set (field q z) (field p z))
+       (set (field q w) (field p x))))
+  (var c float (- (field q x) (? (< (field q w) (field q y))
+                                 (field q w) (field q y))))
+  (var h float (fabs (+
+                      (/ (- (field q w) (field q y))
+                         (+ (* 6.0f c) color-conversion-epsilon))
+                      (field q z))))
+  (return (array h c (field q x))))
+
+(defun-local auto-color-rgb-to-hsl (rgb auto-color-float &return auto-color-float)
+  (var HCV auto-color-float (auto-color-rgb-to-hcv rgb))
+  (var L float (- (field HCV z) (* (field HCV y) 0.5f)))
+  (var S float (/ (field HCV y)
+                  (+ (- 1.0f (fabs (- (* L 2.0f) 1.0f)))
+                     color-conversion-epsilon)))
+  (return (array (field HCV x) S L)))
+
+(defun-local test--auto-color-conversions (&return int)
+  (var test-hsl auto-color-float (array 0.25f 0.8f 0.2f))
+  (var test-char-hsl auto-color-struct (auto-color-float-to-char test-hsl))
+  (var color-rgb auto-color-float (auto-color-hsl-to-rgb test-hsl))
+  (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
+  (var color-char-hsl auto-color-struct (auto-color-float-to-char
+                                         (auto-color-rgb-to-hsl color-rgb)))
+  (fprintf stderr "
+HSL:         %3d %3d %3d\n
+RGB:         %3d %3d %3d\n
+Back to HSL: %3d %3d %3d\n"
+           (field test-char-hsl x)
+           (field test-char-hsl y)
+           (field test-char-hsl z)
+           (field color-char-rgb x)
+           (field color-char-rgb y)
+           (field color-char-rgb z)
+           (field color-char-hsl x)
+           (field color-char-hsl y)
+           (field color-char-hsl z))
+
+  (when (!= 0 (memcmp (addr color-char-hsl) (addr test-char-hsl)
+                      (sizeof (type auto-color-struct))))
+    (return 1))
+  (return 0))
 
 ;;
 ;; Color selection
@@ -261,6 +302,19 @@
     (memcpy (token-splice dest) (token-splice src) (sizeof (type auto-color))))
   (return true))
 
+(defun-local auto-color-sort-hsl-color-float-darkest-first (a (* (const void)) b (* (const void))
+                                                            &return int)
+  (var-cast-to a-value (* auto-color-float) a)
+  (var-cast-to b-value (* auto-color-float) b)
+  ;; Lightness
+  (when (!= (path a-value > z) (path b-value > z))
+    (return (? (< (path a-value > z) (path b-value > z)) -1 1)))
+  ;; Saturation
+  (when (!= (path a-value > y) (path b-value > y))
+    (return (? (< (path a-value > y) (path b-value > y)) -1 1)))
+  ;; Hue
+  (return (? (< (path a-value > x) (path b-value > x)) -1 1)))
+
 ;; Base16 is a style of colors supported by various apps. See https://github.com/chriskempson/base16
 ;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
 ;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
@@ -276,6 +330,12 @@
   (defstruct auto-color-base16-color
     description (* (const char))
     method auto-color-selection-method)
+
+  ;; Background
+  ;; These values ensure the backgrounds are nice and dark, even if the color palette values are all bright
+  ;; Each background gets progressively lighter. We'll define a different max acceptible value for each level
+  ;; For example, the Base00 default background is darkest, so it will be clamped to 0.08 if necessary
+  (var maximum-background-brightness-thresholds ([] float) (array 0.08f 0.15f 0.2f 0.25f 0.3f 0.4f 0.45f))
 
   (var selection-methods ([] 16 auto-color-base16-color)
     (array
@@ -312,15 +372,31 @@
      (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
             pick-high-contrast-bright-color-unique-or-random)))
 
-  (var test-hsl auto-color-float (array 0.25f 0.8f 0.2f))
-  (var color-rgb auto-color-float (auto-color-hsl-to-rgb test-hsl))
-  (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
-  (fprintf stderr "%f %f %f %d %d %d\n" (field color-rgb x)
-           (field color-rgb y)
-           (field color-rgb z)
-           (field color-char-rgb x)
-           (field color-char-rgb y)
-           (field color-char-rgb z))
+  ;; Need to increase size if the dark backgrounds requests increase
+  (var darkest-colors-hsl ([] 6 auto-color-float) (array 0))
+  (each-in-array darkest-colors-hsl i
+    (when (>= i num-colors-in-palette) ;; Should only happen with very small palettes
+      (break))
+    (var color-to-float auto-color-float
+      (auto-color-char-to-float (at i color-palette)))
+    (set (at i darkest-colors-hsl)
+         (auto-color-rgb-to-hsl color-to-float)))
+
+  (qsort darkest-colors-hsl
+         (? (< num-colors-in-palette (array-size darkest-colors-hsl))
+            num-colors-in-palette (array-size darkest-colors-hsl))
+         (sizeof (at 0 darkest-colors-hsl))
+         auto-color-sort-hsl-color-float-darkest-first)
+
+  (fprintf stderr "\nColors by lightness, darkest first:\n")
+  (each-in-array darkest-colors-hsl i
+    (var color-rgb auto-color-float (auto-color-hsl-to-rgb (at i darkest-colors-hsl)))
+    (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
+    (fprintf stderr "#%02x%02x%02x\n"
+             (field color-char-rgb x)
+             (field color-char-rgb y)
+             (field color-char-rgb z)))
+  (fprintf stderr "\n")
 
   (each-in-array selection-methods current-base
     (var selection-method auto-color-selection-method

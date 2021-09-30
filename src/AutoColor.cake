@@ -332,6 +332,18 @@ Back to HSL: %3d %3d %3d\n"
     (return false))
   (return true))
 
+(defun-local auto-color-clamp-within-contrast-range (color auto-color-float
+                                                     background-lightness float
+                                                     minimum-contrast float
+                                                     maximum-contrast float
+                                                     &return auto-color-float)
+  (var contrast float (- (field color z) background-lightness))
+  (when (< contrast minimum-contrast)
+    (set (field color z) (+ (field color z) (- minimum-contrast contrast))))
+  (when (> contrast maximum-contrast)
+    (set (field color z) (- (field color z) (- contrast maximum-contrast))))
+  (return color))
+
 ;; Base16 is a style of colors supported by various apps. See https://github.com/chriskempson/base16
 ;; We need to pick colors from our palette (modifying them if necessary) in order to give the user
 ;; a good Base16 theme. Good being, high enough contrast, desired dark/light, different colors for
@@ -465,21 +477,19 @@ Back to HSL: %3d %3d %3d\n"
          (break)))
 
       ((= pick-high-contrast-bright-color-unique-or-random selection-method)
-       ;; TODO: Handle case where no color is selected
-       (each-in-closed-interval-descending next-unique-light-foreground-color-index 0 i
-         (unless (auto-color-is-within-contrast-range
-                  (at i work-space) background-lightness
-                  minimum-text-contrast
-                  maximum-text-contrast)
-           (continue))
-         (var foreground-color auto-color-struct
-           (auto-color-float-to-char
-            (auto-color-hsl-to-rgb (at i work-space))))
-         (set-color (at current-base base16-colors-out) (addr foreground-color))
-         (set next-unique-light-foreground-color-index (- i 1))
-         (when (< next-unique-light-foreground-color-index 0)
-           (set next-unique-light-foreground-color-index 0))
-         (break))))
+       (var clamped-color auto-color-float
+         (auto-color-clamp-within-contrast-range
+          (at next-unique-light-foreground-color-index work-space)
+          background-lightness
+          minimum-text-contrast
+          maximum-text-contrast))
+       (var foreground-color auto-color-struct
+         (auto-color-float-to-char
+          (auto-color-hsl-to-rgb clamped-color)))
+       (set-color (at current-base base16-colors-out) (addr foreground-color))
+       (decr next-unique-light-foreground-color-index)
+       (when (< next-unique-light-foreground-color-index 0)
+         (set next-unique-light-foreground-color-index 0))))
 
     (fprintf stderr "#%02x%02x%02x\t\t%s\n"
              (at 0 (at current-base base16-colors-out))

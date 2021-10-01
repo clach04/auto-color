@@ -2,6 +2,7 @@
         &comptime-only "CHelpers.cake")
 (c-import "<stdio.h>" ;; fprintf, strncmp
           "<stdlib.h>" ;; qsort
+          "<string.h>" ;; memcmp
           "<math.h>") ;; sqrtf
 
 ;;
@@ -40,7 +41,24 @@
       (return null))
 
     (set background (strdup (+ background file-uri-prefix-length)))
-    (return background))))
+    (return background)))
+
+ ('Windows
+  (c-preprocessor-define WIN32_LEAN_AND_MEAN)
+  (c-import "windows.h")
+
+  (defun-local auto-color-get-current-background-filename (error-string (* (* (const char)))
+                                                           &return (* (const char)))
+    (set (deref error-string) "Unable to read background: platform not supported")
+    (var wallpaper-path ([] 2048 char) (array 0))
+    (var buffer-size DWORD (sizeof wallpaper-path))
+    (var result DWORD
+      (RegGetValueA HKEY_CURRENT_USER "Control Panel\\Desktop" "WallPaper" RRF_RT_REG_SZ
+                  null wallpaper-path (addr buffer-size)))
+    (unless (= result ERROR_SUCCESS)
+      (set (deref error-string) "Could not get value from registry")
+      (return null))
+    (return null))))
 
 ;;
 ;; Image data

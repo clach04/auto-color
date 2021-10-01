@@ -9,7 +9,7 @@ cd $CAKELISP_DIR
 
 cd ../..
 
-echo "\n\nFile Helper\n\n"
+echo "\n\nAuto color\n\n"
 
 CAKELISP=./Dependencies/cakelisp/bin/cakelisp
 

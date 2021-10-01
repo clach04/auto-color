@@ -18,18 +18,20 @@
   (c-import "gio/gio.h")
   (add-library-dependency "glib-2.0" "gio-2.0" "gobject-2.0")
 
-  (defun-local auto-color-get-current-background-filename (error-string (* (* (const char)))
-                                                           &return (* (const char)))
+  (defun-local auto-color-get-current-background-filename (wallpaper-out (* char)
+                                                           wallpaper-out-size (unsigned int)
+                                                           error-string (* (* (const char)))
+                                                           &return bool)
     (var g-settings (* GSettings) (g_settings_new "org.gnome.desktop.background"))
     (unless g-settings
       (set (deref error-string) "Unable to get GTK settings for org.gnome.desktop.background")
-      (return null))
+      (return false))
     (var background (* gchar) (g_settings_get_string g-settings "picture-uri"))
     (unless background
       (set (deref error-string) "Unable to get picture-uri from org.gnome.desktop.background")
       (g_object_unref g-settings)
       (set g-settings null)
-      (return null))
+      (return false))
 
     (g_object_unref g-settings)
     (set g-settings null)
@@ -38,27 +40,30 @@
     (var file-uri-prefix-length size_t (strlen file-uri))
     (unless (= 0 (strncmp file-uri background file-uri-prefix-length))
       (set (deref error-string) "Unable to process picture-uri: uri type not supported")
-      (return null))
+      (return false))
 
-    (set background (strdup (+ background file-uri-prefix-length)))
-    (return background)))
+    (snprintf wallpaper-out wallpaper-out-size "%s" (+ background file-uri-prefix-length))
+    (return true)))
 
  ('Windows
   (c-preprocessor-define WIN32_LEAN_AND_MEAN)
   (c-import "windows.h")
 
-  (defun-local auto-color-get-current-background-filename (error-string (* (* (const char)))
-                                                           &return (* (const char)))
-    (set (deref error-string) "Unable to read background: platform not supported")
-    (var wallpaper-path ([] 2048 char) (array 0))
-    (var buffer-size DWORD (sizeof wallpaper-path))
+  (defun-local auto-color-get-current-background-filename (wallpaper-out (* char)
+                                                           wallpaper-out-size (unsigned int)
+                                                           error-string (* (* (const char)))
+                                                           &return bool)
+    (var buffer-size DWORD wallpaper-out-size)
     (var result DWORD
       (RegGetValueA HKEY_CURRENT_USER "Control Panel\\Desktop" "WallPaper" RRF_RT_REG_SZ
-                  null wallpaper-path (addr buffer-size)))
+                  null wallpaper-out (addr buffer-size)))
     (unless (= result ERROR_SUCCESS)
       (set (deref error-string) "Could not get value from registry")
-      (return null))
-    (return (strdup wallpaper-path)))))
+      (return false))
+    (unless (at 0 wallpaper-out)
+      (set (deref error-string) "The wallpaper registry value was retrieved, but it is empty")
+      (return false))
+    (return true))))
 
 ;;
 ;; Image data
@@ -389,7 +394,7 @@ Back to HSL: %3d %3d %3d\n"
   (defenum auto-color-selection-method
     pick-darkest-color-force-dark-threshold
     pick-darkest-high-contrast-color-unique
-    pick-high-contrast-bright-color-unique-or-random)
+    pick-high-contrast-bright-color-unique)
 
   (defstruct auto-color-base16-color
     description (* (const char))
@@ -414,21 +419,21 @@ Back to HSL: %3d %3d %3d\n"
      (array "base07 - Light Background (Not often used)"
             pick-darkest-color-force-dark-threshold)
      (array "base08 - Variables, XML Tags, Markup Link Text, Markup Lists, Diff Deleted"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base09 - Integers, Boolean, Constants, XML Attributes, Markup Link Url"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0A - Classes, Markup Bold, Search Text Background"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0B - Strings, Inherited Class, Markup Code, Diff Inserted"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0C - Support, Regular Expressions, Escape Characters, Markup Quotes"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0D - Functions, Methods, Attribute IDs, Headings"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0E - Keywords, Storage, Selector, Markup Italic, Diff Changed"
-            pick-high-contrast-bright-color-unique-or-random)
+            pick-high-contrast-bright-color-unique)
      (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
-            pick-high-contrast-bright-color-unique-or-random)))
+            pick-high-contrast-bright-color-unique)))
 
   ;; Prepare workspace by copying palette and sorting by lightness
   ;; Need to increase size if the dark backgrounds requests increase
@@ -494,7 +499,7 @@ Back to HSL: %3d %3d %3d\n"
          (set next-unique-dark-foreground-color-index (+ 1 i))
          (break)))
 
-      ((= pick-high-contrast-bright-color-unique-or-random selection-method)
+      ((= pick-high-contrast-bright-color-unique selection-method)
        (var clamped-color auto-color-float
          (auto-color-clamp-within-contrast-range
           (at next-unique-light-foreground-color-index work-space)
@@ -521,16 +526,15 @@ Back to HSL: %3d %3d %3d\n"
 
 (defun auto-color-pick-from-current-background (&return bool)
   (var error-string (* (const char)) null)
-  (var background-filename (* (const char))
-    (auto-color-get-current-background-filename (addr error-string)))
-  (unless background-filename
+  (var background-filename ([] 1024 char) (array 0))
+  (unless (auto-color-get-current-background-filename
+           background-filename (sizeof background-filename) (addr error-string))
     (fprintf stderr "error: %s" error-string)
     (return false))
   (fprintf stderr "\nPicking colors from '%s'\n" background-filename)
 
   (var image-data auto-color-image (array 0))
   (unless (auto-color-load-image background-filename (addr image-data))
-    (free (type-cast background-filename (* void)))
     (return false))
 
   (var color-palette ([] 16 auto-color))
@@ -550,5 +554,4 @@ Back to HSL: %3d %3d %3d\n"
    base16-colors)
 
   (auto-color-image-destroy (addr image-data))
-  (free (type-cast background-filename (* void)))
   (return true))

@@ -58,7 +58,7 @@
     (unless (= result ERROR_SUCCESS)
       (set (deref error-string) "Could not get value from registry")
       (return null))
-    (return null))))
+    (return (strdup wallpaper-path)))))
 
 ;;
 ;; Image data

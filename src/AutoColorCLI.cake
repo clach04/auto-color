@@ -74,6 +74,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
 
 (defun main (num-arguments int arguments ([] (* char)) &return int)
+  (set g-auto-color-should-print true)
   (when (> num-arguments 1)
     (when (= 0 (strcmp (at 1 arguments) "--license"))
       (fprintf stderr "%s\n" g-copyright-string)
@@ -81,7 +82,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
   (fprintf stderr "Auto Color\nCopyright (c) 2021 Macoy Madson.\n
 Pass --license to see copyright and license info.\n")
 
-  (unless (auto-color-pick-from-current-background)
+  (var base16-colors ([] 16 auto-color) (array 0))
+  (unless (auto-color-pick-from-current-background base16-colors)
     (return 1))
   (return 0))
 

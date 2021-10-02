@@ -5,6 +5,17 @@
           "<string.h>" ;; memcmp
           "<math.h>") ;; sqrtf
 
+(var-global g-auto-color-should-print bool false)
+(defmacro debug-print (format string &optional &rest arguments any)
+  (if arguments
+    (tokenize-push output
+      (when g-auto-color-should-print
+        (fprintf stderr (token-splice format) (token-splice-rest arguments tokens))))
+    (tokenize-push output
+      (when g-auto-color-should-print
+        (fprintf stderr (token-splice format)))))
+  (return true))
+
 ;;
 ;; Background/wallpaper determination
 ;;
@@ -70,7 +81,7 @@
     (var buffer-size DWORD wallpaper-out-size)
     (var result DWORD
       (RegGetValueA HKEY_CURRENT_USER "Control Panel\\Desktop" "WallPaper" RRF_RT_REG_SZ
-                  null wallpaper-out (addr buffer-size)))
+                    null wallpaper-out (addr buffer-size)))
     (unless (= result ERROR_SUCCESS)
       (set (deref error-string) "Could not get value from registry")
       (return false))
@@ -100,8 +111,8 @@
                (addr (path image-data-out > width)) (addr (path image-data-out > height))
                (addr num-pixel-components) num-desired-channels))
   (unless pixel-data
-    (fprintf stderr "error: failed to load %s with message: %s\n" image-to-load
-             (stbi_failure_reason))
+    (debug-print "error: failed to load %s with message: %s\n" image-to-load
+                 (stbi_failure_reason))
     (return false))
   (set (path image-data-out > pixel-data) pixel-data)
   (return true))
@@ -115,7 +126,7 @@
     (? (< (token-splice a) (token-splice b)) (token-splice a) (token-splice b)))
   (return true))
 
-(def-type-alias auto-color ([] 3 (unsigned char)))
+(def-type-alias-global auto-color ([] 3 (unsigned char)))
 (defstruct auto-color-struct
   x (unsigned char)
   y (unsigned char)
@@ -233,19 +244,19 @@
   (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
   (var color-char-hsl auto-color-struct (auto-color-float-to-char
                                          (auto-color-rgb-to-hsl color-rgb)))
-  (fprintf stderr "
+  (debug-print "
 HSL:         %3d %3d %3d\n
 RGB:         %3d %3d %3d\n
 Back to HSL: %3d %3d %3d\n"
-           (field test-char-hsl x)
-           (field test-char-hsl y)
-           (field test-char-hsl z)
-           (field color-char-rgb x)
-           (field color-char-rgb y)
-           (field color-char-rgb z)
-           (field color-char-hsl x)
-           (field color-char-hsl y)
-           (field color-char-hsl z))
+               (field test-char-hsl x)
+               (field test-char-hsl y)
+               (field test-char-hsl z)
+               (field color-char-rgb x)
+               (field color-char-rgb y)
+               (field color-char-rgb z)
+               (field color-char-hsl x)
+               (field color-char-hsl y)
+               (field color-char-hsl z))
 
   (when (!= 0 (memcmp (addr color-char-hsl) (addr test-char-hsl)
                       (sizeof (type auto-color-struct))))
@@ -283,11 +294,11 @@ Back to HSL: %3d %3d %3d\n"
                          (- samples-per-x 1))) ;; -1 to account for 0 index
    (set sample-skip-y (/ (path image-data > height)
                          (- samples-per-y 1)))
-   (fprintf stderr "Samples: %dx%d for total of %d samples. Sample every %dx%d pixel
+   (debug-print "Samples: %dx%d for total of %d samples. Sample every %dx%d pixel
  of the %dx%d image\n"
-            samples-per-x samples-per-y num-color-samples
-            sample-skip-x sample-skip-y
-            (path image-data > width) (path image-data > height)))
+                samples-per-x samples-per-y num-color-samples
+                sample-skip-x sample-skip-y
+                (path image-data > width) (path image-data > height)))
 
   (var current-sample-write (* auto-color) color-samples)
   (c-for (var y int 0) (< y (path image-data > height)) (set y (+ y sample-skip-y))
@@ -301,7 +312,7 @@ Back to HSL: %3d %3d %3d\n"
 
   ;; This isn't exactly equal to the color-samples array size due to the even sample distribution
   (var num-samples int (- current-sample-write color-samples))
-  (fprintf stderr "Sampled %d pixels\n" num-samples)
+  (debug-print "Sampled %d pixels\n" num-samples)
 
   (var num-distinct-colors int 0)
   ;; TODO Dynamically adjust threshold based on whether we found enough colors?
@@ -462,16 +473,19 @@ Back to HSL: %3d %3d %3d\n"
          (sizeof (at 0 work-space))
          auto-color-sort-hsl-color-float-darkest-first)
 
-  (fprintf stderr "\nColors by lightness, darkest first:\n")
+  (debug-print "\nColors by lightness, darkest first:\n")
   (each-in-range num-colors-in-palette i
     (var color-rgb auto-color-float (auto-color-hsl-to-rgb (at i work-space)))
     (var color-char-rgb auto-color-struct (auto-color-float-to-char color-rgb))
-    (fprintf stderr "#%02x%02x%02x\t\t%f lightness\n"
-             (field color-char-rgb x)
-             (field color-char-rgb y)
-             (field color-char-rgb z)
-             (field (at i work-space) z)))
-  (fprintf stderr "\n")
+    (debug-print "#%02x%02x%02x\t\t%f lightness (hsl %f %f %f)\n"
+                 (field color-char-rgb x)
+                 (field color-char-rgb y)
+                 (field color-char-rgb z)
+                 (field (at i work-space) z)
+                 (field (at i work-space) x)
+                 (field (at i work-space) y)
+                 (field (at i work-space) z)))
+  (debug-print "\n")
 
   (var next-unique-dark-color-index (unsigned char) 0)
   (var next-unique-dark-foreground-color-index (unsigned char) 0)
@@ -528,24 +542,25 @@ Back to HSL: %3d %3d %3d\n"
        (when (< next-unique-light-foreground-color-index 0)
          (set next-unique-light-foreground-color-index 0))))
 
-    (fprintf stderr "#%02x%02x%02x\t\t%s\n"
-             (at 0 (at current-base base16-colors-out))
-             (at 1 (at current-base base16-colors-out))
-             (at 2 (at current-base base16-colors-out))
-             (field (at current-base selection-methods) description))))
+    (debug-print "#%02x%02x%02x\t\t%s\n"
+                 (at 0 (at current-base base16-colors-out))
+                 (at 1 (at current-base base16-colors-out))
+                 (at 2 (at current-base base16-colors-out))
+                 (field (at current-base selection-methods) description))))
 
 ;;
 ;; Interface
 ;;
 
-(defun auto-color-pick-from-current-background (&return bool)
+;; base16-colors-out must be size 16
+(defun auto-color-pick-from-current-background (base16-colors-out (* auto-color) &return bool)
   (var error-string (* (const char)) null)
   (var background-filename ([] 1024 char) (array 0))
   (unless (auto-color-get-current-background-filename
            background-filename (sizeof background-filename) (addr error-string))
-    (fprintf stderr "error: %s" error-string)
+    (debug-print "error: %s" error-string)
     (return false))
-  (fprintf stderr "\nPicking colors from '%s'\n" background-filename)
+  (debug-print "\nPicking colors from '%s'\n" background-filename)
 
   (var image-data auto-color-image (array 0))
   (unless (auto-color-load-image background-filename (addr image-data))
@@ -557,15 +572,14 @@ Back to HSL: %3d %3d %3d\n"
     (auto-color-pick-colors-by-threshold (addr image-data) color-palette num-colors-requested))
 
   (each-in-range num-colors-attained i
-    (fprintf stderr "#%02x%02x%02x\n" (at i 0 color-palette)
-             (at i 1 color-palette)
-             (at i 2 color-palette)))
+    (debug-print "#%02x%02x%02x\n" (at i 0 color-palette)
+                 (at i 1 color-palette)
+                 (at i 2 color-palette)))
 
-  (var base16-colors ([] 16 auto-color))
   (var work-space ([] 16 auto-color-float))
   (auto-color-create-base16-theme-from-colors
    color-palette num-colors-attained work-space
-   base16-colors)
+   base16-colors-out)
 
   (auto-color-image-destroy (addr image-data))
   (return true))

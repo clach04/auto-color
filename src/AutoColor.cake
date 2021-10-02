@@ -488,7 +488,7 @@ Back to HSL: %3d %3d %3d\n"
   (debug-print "\n")
 
   (var next-unique-dark-color-index (unsigned char) 0)
-  (var next-unique-dark-foreground-color-index (unsigned char) 0)
+  (var next-unique-dark-foreground-color-index (unsigned char) (/ num-colors-in-palette 2))
   (var next-unique-light-foreground-color-index (unsigned char) (- num-colors-in-palette 1))
   (var background-lightness float -1.f)
 
@@ -512,20 +512,17 @@ Back to HSL: %3d %3d %3d\n"
        (incr next-unique-dark-color-index))
 
       ((= pick-darkest-high-contrast-color-unique selection-method)
-       ;; TODO: Handle case where no color is selected
-       (each-in-interval next-unique-dark-foreground-color-index
-           num-colors-in-palette i
-         (unless (auto-color-is-within-contrast-range
-                  (at i work-space) background-lightness
-                  minimum-de-emphasized-text-contrast
-                  maximum-text-contrast)
-           (continue))
-         (var de-emphasized-color auto-color-struct
-           (auto-color-float-to-char
-            (auto-color-hsl-to-rgb (at i work-space))))
-         (set-color (at current-base base16-colors-out) (addr de-emphasized-color))
-         (set next-unique-dark-foreground-color-index (+ 1 i))
-         (break)))
+       (var clamped-color auto-color-float
+         (auto-color-clamp-within-contrast-range
+          (at next-unique-dark-foreground-color-index work-space)
+          background-lightness
+          minimum-de-emphasized-text-contrast
+          maximum-text-contrast))
+       (var de-emphasized-color auto-color-struct
+         (auto-color-float-to-char
+          (auto-color-hsl-to-rgb clamped-color)))
+       (set-color (at current-base base16-colors-out) (addr de-emphasized-color))
+       (incr next-unique-dark-foreground-color-index))
 
       ((= pick-high-contrast-bright-color-unique selection-method)
        (var clamped-color auto-color-float

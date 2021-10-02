@@ -43,6 +43,7 @@
     (var file-uri-prefix-length size_t (strlen file-uri))
     (unless (= 0 (strncmp file-uri background file-uri-prefix-length))
       (set (deref error-string) "Unable to process picture-uri: uri type not supported")
+      (g_free background)
       (return false))
 
     (snprintf wallpaper-out wallpaper-out-size "%s" (+ background file-uri-prefix-length))

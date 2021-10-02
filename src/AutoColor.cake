@@ -490,8 +490,8 @@ Back to HSL: %3d %3d %3d\n"
   ;; Types
   (defenum auto-color-selection-method
     pick-darkest-color-force-dark-threshold
-    pick-darkest-high-contrast-color-unique
-    pick-high-contrast-bright-color-unique)
+    pick-darkest-high-contrast-color
+    pick-high-contrast-bright-color)
 
   (defstruct auto-color-base16-color
     description (* (const char))
@@ -506,31 +506,31 @@ Back to HSL: %3d %3d %3d\n"
      (array "base02 - Selection Background"
             pick-darkest-color-force-dark-threshold)
      (array "base03 - Comments, Invisibles, Line Highlighting"
-            pick-darkest-high-contrast-color-unique)
+            pick-darkest-high-contrast-color)
      (array "base04 - Dark Foreground (Used for status bars)"
-            pick-darkest-high-contrast-color-unique)
+            pick-darkest-high-contrast-color)
      (array "base05 - Default Foreground, Caret, Delimiters, Operators"
-            pick-darkest-high-contrast-color-unique)
+            pick-darkest-high-contrast-color)
      (array "base06 - Light Foreground (Not often used)"
             pick-darkest-color-force-dark-threshold)
      (array "base07 - Light Background (Not often used)"
             pick-darkest-color-force-dark-threshold)
      (array "base08 - Variables, XML Tags, Markup Link Text, Markup Lists, Diff Deleted"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base09 - Integers, Boolean, Constants, XML Attributes, Markup Link Url"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0A - Classes, Markup Bold, Search Text Background"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0B - Strings, Inherited Class, Markup Code, Diff Inserted"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0C - Support, Regular Expressions, Escape Characters, Markup Quotes"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0D - Functions, Methods, Attribute IDs, Headings"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0E - Keywords, Storage, Selector, Markup Italic, Diff Changed"
-            pick-high-contrast-bright-color-unique)
+            pick-high-contrast-bright-color)
      (array "base0F - Deprecated, Opening/Closing Embedded Language Tags, e.g. <?php ?>"
-            pick-high-contrast-bright-color-unique)))
+            pick-high-contrast-bright-color)))
 
   ;; Prepare workspace by copying palette and sorting by lightness
   ;; Need to increase size if the dark backgrounds requests increase
@@ -559,9 +559,9 @@ Back to HSL: %3d %3d %3d\n"
                  (field (at i work-space) z)))
   (debug-print "\n")
 
-  (var next-unique-dark-color-index (unsigned char) 0)
-  (var next-unique-dark-foreground-color-index (unsigned char) (/ num-colors-in-palette 2))
-  (var next-unique-light-foreground-color-index (unsigned char) (- num-colors-in-palette 1))
+  (var next-dark-color-index (unsigned char) 0)
+  (var next-dark-foreground-color-index (unsigned char) (/ num-colors-in-palette 2))
+  (var next-light-foreground-color-index (unsigned char) (- num-colors-in-palette 1))
   (var background-lightness float -1.f)
 
   (each-in-array selection-methods current-base
@@ -569,11 +569,11 @@ Back to HSL: %3d %3d %3d\n"
       (field (at current-base selection-methods) method))
     (cond
       ((= pick-darkest-color-force-dark-threshold selection-method)
-       (var clamped-color auto-color-float (at next-unique-dark-color-index work-space))
+       (var clamped-color auto-color-float (at next-dark-color-index work-space))
        ;; Keep it darker than thresholds
        (set (field clamped-color z)
             (min (field clamped-color z)
-                 (at next-unique-dark-color-index
+                 (at next-dark-color-index
                      maximum-background-brightness-thresholds)))
        (when (= -1.f background-lightness)
          (set background-lightness (field clamped-color z)))
@@ -581,12 +581,14 @@ Back to HSL: %3d %3d %3d\n"
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr dark-color))
-       (incr next-unique-dark-color-index))
+       (incr next-dark-color-index)
+       (when (>= next-dark-color-index num-colors-in-palette)
+         (set next-dark-color-index (- num-colors-in-palette 1))))
 
-      ((= pick-darkest-high-contrast-color-unique selection-method)
+      ((= pick-darkest-high-contrast-color selection-method)
        (var clamped-color auto-color-float
          (auto-color-clamp-within-contrast-range
-          (at next-unique-dark-foreground-color-index work-space)
+          (at next-dark-foreground-color-index work-space)
           background-lightness
           minimum-de-emphasized-text-contrast
           maximum-text-contrast))
@@ -594,12 +596,14 @@ Back to HSL: %3d %3d %3d\n"
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr de-emphasized-color))
-       (incr next-unique-dark-foreground-color-index))
+       (incr next-dark-foreground-color-index)
+       (when (>= next-dark-foreground-color-index num-colors-in-palette)
+         (set next-dark-foreground-color-index (- num-colors-in-palette 1))))
 
-      ((= pick-high-contrast-bright-color-unique selection-method)
+      ((= pick-high-contrast-bright-color selection-method)
        (var clamped-color auto-color-float
          (auto-color-clamp-within-contrast-range
-          (at next-unique-light-foreground-color-index work-space)
+          (at next-light-foreground-color-index work-space)
           background-lightness
           minimum-text-contrast
           maximum-text-contrast))
@@ -607,9 +611,8 @@ Back to HSL: %3d %3d %3d\n"
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr foreground-color))
-       (decr next-unique-light-foreground-color-index)
-       (when (< next-unique-light-foreground-color-index 0)
-         (set next-unique-light-foreground-color-index 0))))
+       (when (> next-light-foreground-color-index 0)
+         (decr next-light-foreground-color-index))))
 
     (debug-print "#%02x%02x%02x\t\t%s\n"
                  (at 0 (at current-base base16-colors-out))

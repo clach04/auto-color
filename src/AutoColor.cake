@@ -47,12 +47,14 @@
       (return false))
 
     (snprintf wallpaper-out wallpaper-out-size "%s" (+ background file-uri-prefix-length))
+    (g_free background)
 
     ;; GLib puts %20 for e.g. space in strings. Parse those out into valid file paths
     (var found-bad-char bool false)
     (each-char-in-string wallpaper-out current-char
       (when (= '%' (deref current-char))
-        (set found-bad-char true)))
+        (set found-bad-char true)
+        (break)))
     (when found-bad-char
       (uriUnescapeInPlaceEx wallpaper-out))
     (return true)))

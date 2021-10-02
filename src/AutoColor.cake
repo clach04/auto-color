@@ -8,7 +8,7 @@
 (var-global g-auto-color-copyright-string (* (const char))
   #"#Auto Color
 Created by Macoy Madson <macoy@macoy.me>.
-https://macoy.me/code/macoy/file-helper
+https://macoy.me/code/macoy/auto-color
 Copyright (c) 2021 Macoy Madson.
 
 Auto Color is free software: you can redistribute it and/or modify

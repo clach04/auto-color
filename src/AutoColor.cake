@@ -13,7 +13,6 @@
  ('Unix
   ;; Gnome GTK
   (add-c-search-directory-module "/usr/include/glib-2.0")
-  (add-c-search-directory-module "/usr/include/glib-2.0")
   (add-c-search-directory-module "/usr/lib/x86_64-linux-gnu/glib-2.0/include")
   (c-import "gio/gio.h")
   (add-library-dependency "glib-2.0" "gio-2.0" "gobject-2.0")

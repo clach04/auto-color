@@ -18,6 +18,10 @@
   (c-import "gio/gio.h")
   (add-library-dependency "glib-2.0" "gio-2.0" "gobject-2.0")
 
+  (add-c-build-dependency "UriUnescape.c")
+
+  (declare-extern-function uriUnescapeInPlaceEx (in-out (* char) &return (* (const char))))
+
   (defun-local auto-color-get-current-background-filename (wallpaper-out (* char)
                                                            wallpaper-out-size (unsigned int)
                                                            error-string (* (* (const char)))
@@ -43,6 +47,14 @@
       (return false))
 
     (snprintf wallpaper-out wallpaper-out-size "%s" (+ background file-uri-prefix-length))
+
+    ;; GLib puts %20 for e.g. space in strings. Parse those out into valid file paths
+    (var found-bad-char bool false)
+    (each-char-in-string wallpaper-out current-char
+      (when (= '%' (deref current-char))
+        (set found-bad-char true)))
+    (when found-bad-char
+      (uriUnescapeInPlaceEx wallpaper-out))
     (return true)))
 
  ('Windows

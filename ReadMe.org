@@ -4,10 +4,28 @@ This is a library which automatically generates color themes based on the user's
 
 I made this project as a part of the [[https://handmade.network/jam][Wheel Reinvention Jam]], using the jam as an excuse to work on a project which feels frivolous, but should come in handy for prettifying future projects.
 
-The project is a C library with a basic command-line interface. The library looks at the user's current desktop background and picks some number of unique colors from that background.
+The project is a C library with an optional command-line interface. The library looks at the user's current desktop background and picks some number of unique colors from that background. It then outputs the color values selected.
 
-It then outputs the color values selected. When included in a C/C++ project, the color values can be used to theme the application to match the user's background automatically.
+* Rationale
+If you are going to be staring at something all day, you might as well make it nice to look at. To me, this means a dark theme for less eye strain, and a pleasing color set.
 
+Similar to musical notes, colors look best in context. Auto Color ensures the application's theme always harmonizes with the user's desktop. Additionally, Auto Color guarantees a set text to background contrast ratio so that any theme is still readable.
+
+* Applications
+When included in a C/C++ project, the color values can be used to theme the application to match the user's background automatically.
+
+In this example, an application I wrote using ImGui uses Auto Color to match the user's wallpaper at startup:
+
+In edge cases where there are very few colors to select from, Auto Color will still guarantee appropriate text contrast ratios:
+
+* Editors
+By using [[https://github.com/chriskempson/base16][base16]], a guideline for color theme formats, any editor which supports Base16 color sets will work with Auto Color.
+
+Here are some screenshots of Emacs after being themed with Auto Color:
+
+You can see with some added transparency, the editor looks really nice.
+
+* Comparison with past work
 My inspiration for this project was from one of my [[https://macoy.me/code/macoy/auto-base16-theme/][previous projects]], which creates color schemes for Emacs:
 
 [[https://macoy.me/code/macoy/auto-base16-theme/media/branch/master/images/Example4.jpg]]

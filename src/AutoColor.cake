@@ -6,7 +6,7 @@
           "<math.h>") ;; sqrtf
 
 (var-global g-auto-color-copyright-string (* (const char))
-  #"#Auto Color
+            #"#Auto Color
 Created by Macoy Madson <macoy@macoy.me>.
 https://macoy.me/code/macoy/auto-color
 Copyright (c) 2021 Macoy Madson.
@@ -80,12 +80,12 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
 (var-global g-auto-color-should-print bool false)
 (defmacro debug-print (format string &optional &rest arguments any)
   (if arguments
-    (tokenize-push output
-      (when g-auto-color-should-print
-        (fprintf stderr (token-splice format) (token-splice-rest arguments tokens))))
-    (tokenize-push output
-      (when g-auto-color-should-print
-        (fprintf stderr (token-splice format)))))
+      (tokenize-push output
+        (when g-auto-color-should-print
+          (fprintf stderr (token-splice format) (token-splice-rest arguments tokens))))
+      (tokenize-push output
+        (when g-auto-color-should-print
+          (fprintf stderr (token-splice format)))))
   (return true))
 
 ;;
@@ -344,6 +344,8 @@ Back to HSL: %3d %3d %3d\n"
                                                   num-colors-requested (unsigned char)
                                                   ;; Num colors attained
                                                   &return (unsigned char))
+  (unless (and image-data color-palette-out num-colors-requested) (return 0))
+
   (var color-samples ([] 512 auto-color))
 
   ;; Dynamically adjust sampling based on resolution to keep a somewhat constant number of samples
@@ -474,6 +476,8 @@ Back to HSL: %3d %3d %3d\n"
                                                          num-colors-in-palette (unsigned char)
                                                          work-space (* auto-color-float)
                                                          base16-colors-out (* auto-color))
+  (unless (and color-palette num-colors-in-palette work-space base16-colors-out) (return))
+
   ;; Constants
   ;; These values ensure the backgrounds are nice and dark, even if the color palette values are all bright
   ;; Each background gets progressively lighter. We'll define a different max acceptible value for each level
@@ -486,6 +490,11 @@ Back to HSL: %3d %3d %3d\n"
   (var minimum-text-contrast float 0.43f)
   ;; So as to not have too brilliant of colors dominating parts of the theme
   (var maximum-text-contrast float 0.65f)
+
+  ;; Each time a dark background color is re-used, add this much brightness
+  (var darkest-brighten-per-repeat float 0.03f)
+  (var dark-brighten-per-repeat float 0.07f)
+  (var light-darken-per-repeat float 0.01f)
 
   ;; Types
   (defenum auto-color-selection-method
@@ -559,9 +568,26 @@ Back to HSL: %3d %3d %3d\n"
                  (field (at i work-space) z)))
   (debug-print "\n")
 
-  (var next-dark-color-index (unsigned char) 0)
-  (var next-dark-foreground-color-index (unsigned char) (/ num-colors-in-palette 2))
-  (var next-light-foreground-color-index (unsigned char) (- num-colors-in-palette 1))
+  (defstruct color-selection-state
+    next-index int
+    ;; Handle edge case where same color needs to be used
+    num-repeat-uses (unsigned char)
+    num-colors-this-method (unsigned char))
+  (var dark-color-state color-selection-state (array 0 0 0))
+  (var dark-foreground-color-state color-selection-state (array (/ num-colors-in-palette 2) 0 0))
+  (var light-foreground-color-state color-selection-state (array (- num-colors-in-palette 1) 0 0))
+
+  (each-in-array selection-methods current-base
+    (var selection-method auto-color-selection-method
+      (field (at current-base selection-methods) method))
+    (cond
+      ((= pick-darkest-color-force-dark-threshold selection-method)
+       (incr (field dark-color-state num-colors-this-method)))
+      ((= pick-darkest-high-contrast-color selection-method)
+       (incr (field dark-foreground-color-state num-colors-this-method)))
+      ((= pick-high-contrast-bright-color selection-method)
+       (incr (field light-foreground-color-state num-colors-this-method)))))
+
   (var background-lightness float -1.f)
 
   (each-in-array selection-methods current-base
@@ -569,11 +595,17 @@ Back to HSL: %3d %3d %3d\n"
       (field (at current-base selection-methods) method))
     (cond
       ((= pick-darkest-color-force-dark-threshold selection-method)
-       (var clamped-color auto-color-float (at next-dark-color-index work-space))
+       (var clamped-color auto-color-float (at (field dark-color-state next-index) work-space))
+       (when (field dark-color-state num-repeat-uses)
+         (set (field clamped-color z)
+              (* (at (field dark-color-state next-index) maximum-background-brightness-thresholds)
+                 (/ (field dark-color-state num-repeat-uses)
+                    (type-cast (field dark-color-state num-colors-this-method) float)))))
+
        ;; Keep it darker than thresholds
        (set (field clamped-color z)
             (min (field clamped-color z)
-                 (at next-dark-color-index
+                 (at (field dark-color-state next-index)
                      maximum-background-brightness-thresholds)))
        (when (= -1.f background-lightness)
          (set background-lightness (field clamped-color z)))
@@ -581,38 +613,56 @@ Back to HSL: %3d %3d %3d\n"
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr dark-color))
-       (incr next-dark-color-index)
-       (when (>= next-dark-color-index num-colors-in-palette)
-         (set next-dark-color-index (- num-colors-in-palette 1))))
+       (incr (field dark-color-state next-index))
+       (when (>= (field dark-color-state next-index) num-colors-in-palette)
+         (incr (field dark-color-state num-repeat-uses))
+         (set (field dark-color-state next-index) (- num-colors-in-palette 1))))
 
       ((= pick-darkest-high-contrast-color selection-method)
        (var clamped-color auto-color-float
-         (auto-color-clamp-within-contrast-range
-          (at next-dark-foreground-color-index work-space)
-          background-lightness
-          minimum-de-emphasized-text-contrast
-          maximum-text-contrast))
+         (at (field dark-foreground-color-state next-index) work-space))
+       (when (field dark-foreground-color-state num-repeat-uses)
+         (set (field clamped-color z)
+              (+ minimum-de-emphasized-text-contrast
+                 (* (- maximum-text-contrast minimum-de-emphasized-text-contrast)
+                    (/ (field dark-foreground-color-state num-repeat-uses)
+                       (type-cast (field dark-foreground-color-state num-colors-this-method) float))))))
+       (set clamped-color (auto-color-clamp-within-contrast-range
+                           clamped-color
+                           background-lightness
+                           minimum-de-emphasized-text-contrast
+                           maximum-text-contrast))
        (var de-emphasized-color auto-color-struct
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr de-emphasized-color))
-       (incr next-dark-foreground-color-index)
-       (when (>= next-dark-foreground-color-index num-colors-in-palette)
-         (set next-dark-foreground-color-index (- num-colors-in-palette 1))))
+       (incr (field dark-foreground-color-state next-index))
+       (when (>= (field dark-foreground-color-state next-index) num-colors-in-palette)
+         (incr (field dark-foreground-color-state num-repeat-uses))
+         (set (field dark-foreground-color-state next-index) (- num-colors-in-palette 1))))
 
       ((= pick-high-contrast-bright-color selection-method)
        (var clamped-color auto-color-float
-         (auto-color-clamp-within-contrast-range
-          (at next-light-foreground-color-index work-space)
-          background-lightness
-          minimum-text-contrast
-          maximum-text-contrast))
+         (at (field light-foreground-color-state next-index) work-space))
+       (when (field light-foreground-color-state num-repeat-uses)
+         (set (field clamped-color z)
+              (+ minimum-text-contrast
+                 (* (- maximum-text-contrast minimum-text-contrast)
+                    (/ (field light-foreground-color-state num-repeat-uses)
+                       (type-cast (field light-foreground-color-state num-colors-this-method) float))))))
+       (set clamped-color
+            (auto-color-clamp-within-contrast-range
+             clamped-color
+             background-lightness
+             minimum-text-contrast
+             maximum-text-contrast))
        (var foreground-color auto-color-struct
          (auto-color-float-to-char
           (auto-color-hsl-to-rgb clamped-color)))
        (set-color (at current-base base16-colors-out) (addr foreground-color))
-       (when (> next-light-foreground-color-index 0)
-         (decr next-light-foreground-color-index))))
+       (if (> (field light-foreground-color-state next-index) 0)
+           (decr (field light-foreground-color-state next-index))
+           (incr (field light-foreground-color-state num-repeat-uses)))))
 
     (debug-print "#%02x%02x%02x\t\t%s\n"
                  (at 0 (at current-base base16-colors-out))

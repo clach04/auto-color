@@ -16,12 +16,22 @@ When included in a C/C++ project, the color values can be used to theme the appl
 
 In this example, an application I wrote using ImGui uses Auto Color to match the user's wallpaper at startup:
 
+[[./images/ImGuiExample1.jpg]]
+
+[[./images/ImGuiExample3.jpg]]
+
+[[./images/ImGuiExample4.jpg]]
+
 In edge cases where there are very few colors to select from, Auto Color will still guarantee appropriate text contrast ratios:
+
+[[./images/ImGuiExample2.jpg]]
 
 * Editors
 By using [[https://github.com/chriskempson/base16][base16]], a guideline for color theme formats, any editor which supports Base16 color sets will work with Auto Color.
 
-Here are some screenshots of Emacs after being themed with Auto Color:
+Here is a screenshot of Emacs after being themed with Auto Color:
+
+[[./images/FirstTheme.jpg]]
 
 You can see with some added transparency, the editor looks really nice.
 

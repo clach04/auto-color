@@ -28,6 +28,23 @@ You can see with some added transparency, the editor looks really nice.
 * Using it
 Auto Color is a single header file. It also comes with a command-line interface.
 
+Here's a simple usage example:
+#+BEGIN_SRC C
+  #include <stdio.h>
+
+  #include "AutoColor.h"
+
+  int main()
+  {
+      AutoColor base16Colors[16] = {0};
+      if (!autoColorPickFromCurrentBackground(base16Colors))
+          return 1;
+      fprintf(stderr "The first color is RGB %d, %d, %d\n"
+              base16Colors[0][0], base16Colors[0][1], base16Colors[0][2]);
+      return 0;
+  }
+#+END_SRC
+
 ** Windows
 The desktop background is retrieved by checking the registry.
 

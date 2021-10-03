@@ -104,10 +104,10 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
 
   (declare-extern-function uriUnescapeInPlaceEx (in-out (* char) &return (* (const char))))
 
-  (defun-local auto-color-get-current-background-filename (wallpaper-out (* char)
-                                                           wallpaper-out-size (unsigned int)
-                                                           error-string (* (* (const char)))
-                                                           &return bool)
+  (defun auto-color-get-current-background-filename (wallpaper-out (* char)
+                                                     wallpaper-out-size (unsigned int)
+                                                     error-string (* (* (const char)))
+                                                     &return bool)
     (var g-settings (* GSettings) (g_settings_new "org.gnome.desktop.background"))
     (unless g-settings
       (set (deref error-string) "Unable to get GTK settings for org.gnome.desktop.background")
@@ -146,10 +146,10 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
   (c-preprocessor-define WIN32_LEAN_AND_MEAN)
   (c-import "windows.h")
 
-  (defun-local auto-color-get-current-background-filename (wallpaper-out (* char)
-                                                           wallpaper-out-size (unsigned int)
-                                                           error-string (* (* (const char)))
-                                                           &return bool)
+  (defun auto-color-get-current-background-filename (wallpaper-out (* char)
+                                                     wallpaper-out-size (unsigned int)
+                                                     error-string (* (* (const char)))
+                                                     &return bool)
     (var buffer-size DWORD wallpaper-out-size)
     (var result DWORD
       (RegGetValueA HKEY_CURRENT_USER "Control Panel\\Desktop" "WallPaper" RRF_RT_REG_SZ

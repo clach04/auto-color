@@ -160,7 +160,9 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
     (unless (at 0 wallpaper-out)
       (set (deref error-string) "The wallpaper registry value was retrieved, but it is empty")
       (return false))
-    (return true))))
+    (return true))
+
+  (add-linker-options "advapi32.lib")))
 
 ;;
 ;; Image data

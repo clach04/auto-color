@@ -12,4 +12,3 @@
 (comptime-define-symbol 'Windows)
 ;; TODO Remove
 ;;(add-build-options-global "/Zi")
-(add-linker-options "advapi32.lib")

@@ -1,5 +1,12 @@
 (skip-build)
 
+;; TODO Create Single File:
+;; - Output module dependencies
+;; - Output all headers first, then all  source files
+;; - File shouldn't include any headers except stdlib ones
+;; - Cakelisp needs to export in C mode (typedef struct, NULL)
+;; - Copy stb_image.h to be inline
+;; - Remove #pragma once
 (defun-comptime create-single-file-lib (manager (& ModuleManager) link-command (& ProcessCommand)
                                         link-time-inputs (* ProcessCommandInput)
                                         num-link-time-inputs int
@@ -9,8 +16,6 @@
   (unless file-out
     (Log "error: failed to open single file header for writing\n")
     (return false))
-
-  (fprintf file-out "// Hello World\n")
 
   (for-in module (* Module) (field manager modules)
     (var standard-files-to-output ([] (* (const char)))

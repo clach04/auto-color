@@ -3,7 +3,8 @@
 (c-import "<stdio.h>" ;; fprintf, strncmp
           "<stdlib.h>" ;; qsort
           "<string.h>" ;; memcmp
-          "<math.h>") ;; sqrtf
+          "<math.h>" ;; sqrtf, round
+          &with-decls "stdbool.h") ;; bool
 
 (var-global g-auto-color-copyright-string (* (const char))
             #"#Auto Color
@@ -301,7 +302,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
                       (/ (- (field q w) (field q y))
                          (+ (* 6.0f c) color-conversion-epsilon))
                       (field q z))))
-  (return (array h c (field q x))))
+  (var packed-color auto-color-float (array h c (field q x)))
+  (return packed-color))
 
 (defun-local auto-color-rgb-to-hsl (rgb auto-color-float &return auto-color-float)
   (var HCV auto-color-float (auto-color-rgb-to-hcv rgb))
@@ -309,7 +311,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.#"#)
   (var S float (/ (field HCV y)
                   (+ (- 1.0f (fabs (- (* L 2.0f) 1.0f)))
                      color-conversion-epsilon)))
-  (return (array (field HCV x) S L)))
+  (var packed-color auto-color-float (array (field HCV x) S L))
+  (return packed-color))
 
 (defun-local test--auto-color-conversions (&return int)
   (var test-hsl auto-color-float (array 0.25f 0.8f 0.2f))

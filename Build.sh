@@ -16,5 +16,6 @@ CAKELISP=./Dependencies/cakelisp/bin/cakelisp
 $CAKELISP --execute --verbose-processes \
 		  src/Config_Linux.cake \
 		  src/AutoColorCLI.cake \
-		  src/CreateSingleFileLib.cake \
 	|| exit $?
+
+#src/CreateSingleFileLib.cake \

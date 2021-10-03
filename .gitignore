@@ -43,3 +43,4 @@ lib/
 imgui.ini
 
 auto-color
+test/auto-color-test

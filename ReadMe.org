@@ -14,7 +14,7 @@ Similar to musical notes, colors look best in context. Auto Color ensures the ap
 * Applications
 When included in a C/C++ project, the color values can be used to theme the application to match the user's background automatically.
 
-In this example, an application I wrote using ImGui uses Auto Color to match the user's wallpaper at startup:
+In this example, an application I wrote using ImGui uses Auto Color to theme to the user's wallpaper:
 
 [[./images/ImGuiExample1.jpg]]
 
@@ -49,11 +49,15 @@ Here's a simple usage example:
       AutoColor base16Colors[16] = {0};
       if (!autoColorPickFromCurrentBackground(base16Colors))
           return 1;
-      fprintf(stderr "The first color is RGB %d, %d, %d\n"
+      fprintf(stderr, "The first color is RGB %d, %d, %d\n",
               base16Colors[0][0], base16Colors[0][1], base16Colors[0][2]);
       return 0;
   }
 #+END_SRC
+
+See the ~test/~ directory for a buildable example.
+
+Note that loading the wallpaper can take a relatively long time, depending on its resolution (long being around 200ms). If you are writing a real-time application, you should run ~autoColorPickFromCurrentBackground()~ on a separate thread than the render thread.
 
 ** Windows
 The desktop background is retrieved by checking the registry.

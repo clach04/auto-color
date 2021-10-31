@@ -72,6 +72,11 @@ Auto Color currently supports the following managers:
 *** GNOME 2.0
 This should work on any newer Ubuntu distribution.
 
+Before compilation:
+#+BEGIN_SRC sh
+sudo apt install libglib2.0-dev
+#+END_SRC
+
 On compilation:
 #+BEGIN_SRC sh
   -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include

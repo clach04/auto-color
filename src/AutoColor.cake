@@ -395,43 +395,24 @@ Back to HSL: %3d %3d %3d\n"
 
   (var color-samples ([] 512 auto-color))
 
-  ;; Dynamically adjust sampling based on resolution to keep a somewhat constant number of samples
-  (var sample-skip-x int 0)
-  (var sample-skip-y int 0)
-  (scope
-   (var samples-per-x int 1)
-   (var samples-per-y int 1)
-   (var samples-per-axis float (sqrtf (array-size color-samples)))
-   (set samples-per-x
-        (* samples-per-axis ;; Evenly distribute samples based on aspect ratio
-           (/ (path image-data > width)
-              (type-cast (path image-data > height) float))))
-   (set samples-per-y
-        (* samples-per-axis ;; Evenly distribute samples based on aspect ratio
-           (/ (type-cast (path image-data > height) float)
-              (path image-data > width))))
-   (var num-color-samples int (* samples-per-x samples-per-y))
-   (set sample-skip-x (/ (path image-data > width)
-                         (- samples-per-x 1))) ;; -1 to account for 0 index
-   (set sample-skip-y (/ (path image-data > height)
-                         (- samples-per-y 1)))
-   (debug-print "Samples: %dx%d for total of %d samples. Sample every %dx%d pixel
- of the %dx%d image\n"
-                samples-per-x samples-per-y num-color-samples
-                sample-skip-x sample-skip-y
-                (path image-data > width) (path image-data > height)))
+  (var num-samples-requested int (array-size color-samples))
+  (var num-pixels int (* (path image-data > width) (path image-data > height)))
+  (var pixel-skip int
+       (/ num-pixels num-samples-requested))
+  (debug-print "Samples: Sample every %d pixel for a total of %d samples. Image is %dx%d\n"
+               pixel-skip num-samples-requested
+               (path image-data > width) (path image-data > height))
 
   (var current-sample-write (* auto-color) color-samples)
-  (c-for (var y int 0) (< y (path image-data > height)) (set y (+ y sample-skip-y))
-    (c-for (var x int 0) (< x (path image-data > width)) (set x (+ x sample-skip-x))
-      (var pixel-index int (* 3 (+ (* y (path image-data > width)) x)))
-      (var pixel-color-component (* (unsigned char))
-        (addr (at pixel-index (path image-data > pixel-data))))
-      (each-in-range 3 i
-        (set (at i (deref current-sample-write)) (at i pixel-color-component)))
-      (incr current-sample-write)))
+  (c-for (var current-pixel int pixel-skip) (< current-pixel num-pixels)
+      (set current-pixel (+ current-pixel pixel-skip))
+    (var pixel-color-index int (* 3 current-pixel))
+    (var pixel-color-component (* (unsigned char))
+      (addr (at pixel-color-index (path image-data > pixel-data))))
+    (each-in-range 3 i
+      (set (at i (deref current-sample-write)) (at i pixel-color-component)))
+    (incr current-sample-write))
 
-  ;; This isn't exactly equal to the color-samples array size due to the even sample distribution
   (var num-samples int (- current-sample-write color-samples))
   (debug-print "Sampled %d pixels\n" num-samples)
 

@@ -10,5 +10,9 @@
 (add-cakelisp-search-directory "src")
 
 (comptime-define-symbol 'Windows)
-;; TODO Remove
-;;(add-build-options-global "/Zi")
+
+;; Remedybg
+;; (add-linker-options "/DEBUG:FULL")
+;; (add-build-options "/Zi" "/FS")
+
+(set-cakelisp-option executable-output "auto-color.exe")

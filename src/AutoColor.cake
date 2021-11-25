@@ -395,12 +395,15 @@ Back to HSL: %3d %3d %3d\n"
 
   (var color-samples ([] 512 auto-color))
 
+  ;; TODO This isn't ideal. An even multiple would end up only sampling the diagonal, etc.
   (var num-samples-requested int (array-size color-samples))
   (var num-pixels int (* (path image-data > width) (path image-data > height)))
   (var pixel-skip int
-       (/ num-pixels num-samples-requested))
+    (/ num-pixels num-samples-requested))
+  (when (< num-pixels num-samples-requested)
+    (set pixel-skip 1))
   (debug-print "Samples: Sample every %d pixel for a total of %d samples. Image is %dx%d\n"
-               pixel-skip num-samples-requested
+               pixel-skip (/ num-pixels pixel-skip)
                (path image-data > width) (path image-data > height))
 
   (var current-sample-write (* auto-color) color-samples)

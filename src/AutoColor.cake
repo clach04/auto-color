@@ -356,7 +356,7 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
   (var packed-color auto-color-float (array (field HCV x) S L))
   (return packed-color))
 
-(defun-local test--auto-color-conversions (&return int)
+(defun test--auto-color-conversions (&return int)
   (var test-hsl auto-color-float (array 0.25f 0.8f 0.2f))
   (var test-char-hsl auto-color-struct (auto-color-float-to-char test-hsl))
   (var color-rgb auto-color-float (auto-color-hsl-to-rgb test-hsl))

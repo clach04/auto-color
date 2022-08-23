@@ -734,5 +734,29 @@ Back to HSL: %3d %3d %3d\n"
    color-palette num-colors-attained work-space
    base16-colors-out)
 
+  (var base-16-color-short-names ([] (* (const char)))
+    (array "DefaultBG"
+           "LighterBG"
+           "SelectionBG"
+           "Comments"
+           "DarkFG"
+           "DefaultFG"
+           "LightFG"
+           "LightBG"
+           "Variables"
+           "Integers"
+           "Classes"
+           "Strings"
+           "Support"
+           "Functions"
+           "Keywords"
+           "Deprecated"))
+  (debug-print "\nGIMP Palette\nName: Base16 theme\nColumns: 16\n")
+  (each-in-range 16 i
+    (debug-print "%d %d %d %s\n" (at i 0 base16-colors-out)
+                 (at i 1 base16-colors-out)
+                 (at i 2 base16-colors-out)
+                 (at i base-16-color-short-names)))
+
   (auto-color-image-destroy (addr image-data))
   (return true))

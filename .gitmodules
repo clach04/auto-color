@@ -6,4 +6,4 @@
 	url = https://macoy.me/code/macoy/gamelib.git
 [submodule "Dependencies/stb"]
 	path = Dependencies/stb
-	url = https://macoy.me/code/macoy/stb
+	url = https://macoy.me/code/macoy/stb.git

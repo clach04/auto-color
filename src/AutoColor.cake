@@ -6,7 +6,7 @@
           "<math.h>" ;; sqrtf, round
           &with-decls "stdbool.h") ;; bool
 
-(var-global g-auto-color-copyright-string (* (const char))
+(var-global g-auto-color-copyright-string (addr (const char))
             #"#Auto Color
 Created by Macoy Madson <macoy@macoy.me>.
 https://macoy.me/code/macoy/auto-color
@@ -145,17 +145,17 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
 
   (add-c-build-dependency "UriUnescape.c")
 
-  (declare-extern-function uriUnescapeInPlaceEx (in-out (* char) &return (* (const char))))
+  (declare-extern-function uriUnescapeInPlaceEx (in-out (addr char) &return (addr (const char))))
 
-  (defun auto-color-get-current-background-filename (wallpaper-out (* char)
+  (defun auto-color-get-current-background-filename (wallpaper-out (addr char)
                                                      wallpaper-out-size (unsigned int)
-                                                     error-string (* (* (const char)))
+                                                     error-string (addr (addr (const char)))
                                                      &return bool)
-    (var g-settings (* GSettings) (g_settings_new "org.gnome.desktop.background"))
+    (var g-settings (addr GSettings) (g_settings_new "org.gnome.desktop.background"))
     (unless g-settings
       (set (deref error-string) "Unable to get GTK settings for org.gnome.desktop.background")
       (return false))
-    (var background (* gchar) (g_settings_get_string g-settings "picture-uri"))
+    (var background (addr gchar) (g_settings_get_string g-settings "picture-uri"))
     (unless background
       (set (deref error-string) "Unable to get picture-uri from org.gnome.desktop.background")
       (g_object_unref g-settings)
@@ -165,7 +165,7 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
     (g_object_unref g-settings)
     (set g-settings null)
 
-    (var file-uri (* (const char)) "file://")
+    (var file-uri (addr (const char)) "file://")
     (var file-uri-prefix-length size_t (strlen file-uri))
     (unless (= 0 (strncmp file-uri background file-uri-prefix-length))
       (set (deref error-string) "Unable to process picture-uri: uri type not supported")
@@ -189,9 +189,9 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
   (c-preprocessor-define WIN32_LEAN_AND_MEAN)
   (c-import "windows.h")
 
-  (defun auto-color-get-current-background-filename (wallpaper-out (* char)
+  (defun auto-color-get-current-background-filename (wallpaper-out (addr char)
                                                      wallpaper-out-size (unsigned int)
-                                                     error-string (* (* (const char)))
+                                                     error-string (addr (addr (const char)))
                                                      &return bool)
     (var buffer-size DWORD wallpaper-out-size)
     (var result DWORD
@@ -214,16 +214,16 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
 (defstruct-local auto-color-image
   width int
   height int
-  pixel-data (* (unsigned char)))
+  pixel-data (addr (unsigned char)))
 
-(defun-local auto-color-image-destroy (image-data (* auto-color-image))
+(defun-local auto-color-image-destroy (image-data (addr auto-color-image))
   (stbi_image_free (path image-data > pixel-data)))
 
-(defun-local auto-color-load-image (image-to-load (* (const char))
-                                    image-data-out (* auto-color-image) &return bool)
+(defun-local auto-color-load-image (image-to-load (addr (const char))
+                                    image-data-out (addr auto-color-image) &return bool)
   (var num-pixel-components int 0)
   (var num-desired-channels int 3)
-  (var pixel-data (* (unsigned char))
+  (var pixel-data (addr (unsigned char))
     (stbi_load image-to-load
                (addr (path image-data-out > width)) (addr (path image-data-out > height))
                (addr num-pixel-components) num-desired-channels))
@@ -243,7 +243,7 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
     (? (< (token-splice a) (token-splice b)) (token-splice a) (token-splice b)))
   (return true))
 
-(def-type-alias-global auto-color ([] 3 (unsigned char)))
+(def-type-alias-global auto-color (array 3 (unsigned char)))
 (defstruct auto-color-struct
   x (unsigned char)
   y (unsigned char)
@@ -386,14 +386,14 @@ Back to HSL: %3d %3d %3d\n"
 ;; Color selection
 ;;
 
-(defun-local auto-color-pick-colors-by-threshold (image-data (* auto-color-image)
-                                                  color-palette-out (* auto-color)
+(defun-local auto-color-pick-colors-by-threshold (image-data (addr auto-color-image)
+                                                  color-palette-out (addr auto-color)
                                                   num-colors-requested (unsigned char)
                                                   ;; Num colors attained
                                                   &return (unsigned char))
   (unless (and image-data color-palette-out num-colors-requested) (return 0))
 
-  (var color-samples ([] 512 auto-color))
+  (var color-samples (array 512 auto-color))
 
   ;; TODO This isn't ideal. An even multiple would end up only sampling the diagonal, etc.
   (var num-samples-requested int (array-size color-samples))
@@ -406,11 +406,11 @@ Back to HSL: %3d %3d %3d\n"
                pixel-skip (/ num-pixels pixel-skip)
                (path image-data > width) (path image-data > height))
 
-  (var current-sample-write (* auto-color) color-samples)
+  (var current-sample-write (addr auto-color) color-samples)
   (c-for (var current-pixel int pixel-skip) (< current-pixel num-pixels)
       (set current-pixel (+ current-pixel pixel-skip))
     (var pixel-color-index int (* 3 current-pixel))
-    (var pixel-color-component (* (unsigned char))
+    (var pixel-color-component (addr (unsigned char))
       (addr (at pixel-color-index (path image-data > pixel-data))))
     (each-in-range 3 i
       (set (at i (deref current-sample-write)) (at i pixel-color-component)))
@@ -428,7 +428,7 @@ Back to HSL: %3d %3d %3d\n"
     ;; TODO Add brightness/darkness filter like schemer2?
     (each-in-range num-distinct-colors distinct-color-index
       ;; Use int to prevent underflow
-      (var color-difference ([] 3 int))
+      (var color-difference (array 3 int))
       (each-in-range 3 i
         (set (at i color-difference)
              (abs (- (type-cast (at sample-index i color-samples) int)
@@ -460,10 +460,10 @@ Back to HSL: %3d %3d %3d\n"
     (memcpy (token-splice dest) (token-splice src) (sizeof (type auto-color))))
   (return true))
 
-(defun-local auto-color-sort-hsl-color-float-darkest-first (a (* (const void)) b (* (const void))
+(defun-local auto-color-sort-hsl-color-float-darkest-first (a (addr (const void)) b (addr (const void))
                                                             &return int)
-  (var-cast-to a-value (* auto-color-float) a)
-  (var-cast-to b-value (* auto-color-float) b)
+  (var-cast-to a-value (addr auto-color-float) a)
+  (var-cast-to b-value (addr auto-color-float) b)
   ;; Lightness
   (when (!= (path a-value > z) (path b-value > z))
     (return (? (< (path a-value > z) (path b-value > z)) -1 1)))
@@ -503,17 +503,17 @@ Back to HSL: %3d %3d %3d\n"
 ;; different things, and still reflecting the palette.
 ;; work-space should have length equal to num-colors-in-palette. This exists so this function
 ;; doesn't have to allocate memory.
-(defun-local auto-color-create-base16-theme-from-colors (color-palette (* auto-color)
+(defun-local auto-color-create-base16-theme-from-colors (color-palette (addr auto-color)
                                                          num-colors-in-palette (unsigned char)
-                                                         work-space (* auto-color-float)
-                                                         base16-colors-out (* auto-color))
+                                                         work-space (addr auto-color-float)
+                                                         base16-colors-out (addr auto-color))
   (unless (and color-palette num-colors-in-palette work-space base16-colors-out) (return))
 
   ;; Constants
   ;; These values ensure the backgrounds are nice and dark, even if the color palette values are all bright
   ;; Each background gets progressively lighter. We'll define a different max acceptible value for each level
   ;; For example, the Base00 default background is darkest, so it will be clamped to 0.08 if necessary
-  (var maximum-background-brightness-thresholds ([] float) (array 0.08f 0.15f 0.2f 0.25f 0.3f 0.4f 0.45f))
+  (var maximum-background-brightness-thresholds (array float) (array 0.08f 0.15f 0.2f 0.25f 0.3f 0.4f 0.45f))
 
   ;; Foreground contrasts (i.e. text color HSL lightness - background color HSL lightness)
   ;; These are relative values instead of ratios because you can't figure a ratio on a black background
@@ -534,10 +534,10 @@ Back to HSL: %3d %3d %3d\n"
     pick-high-contrast-bright-color)
 
   (defstruct auto-color-base16-color
-    description (* (const char))
+    description (addr (const char))
     method auto-color-selection-method)
 
-  (var selection-methods ([] 16 auto-color-base16-color)
+  (var selection-methods (array 16 auto-color-base16-color)
     (array
      (array "base00 - Default Background"
             pick-darkest-color-force-dark-threshold)
@@ -706,9 +706,9 @@ Back to HSL: %3d %3d %3d\n"
 ;;
 
 ;; base16-colors-out must be size 16
-(defun auto-color-pick-from-current-background (base16-colors-out (* auto-color) &return bool)
-  (var error-string (* (const char)) null)
-  (var background-filename ([] 1024 char) (array 0))
+(defun auto-color-pick-from-current-background (base16-colors-out (addr auto-color) &return bool)
+  (var error-string (addr (const char)) null)
+  (var background-filename (array 1024 char) (array 0))
   (unless (auto-color-get-current-background-filename
            background-filename (sizeof background-filename) (addr error-string))
     (debug-print "error: %s" error-string)
@@ -719,7 +719,7 @@ Back to HSL: %3d %3d %3d\n"
   (unless (auto-color-load-image background-filename (addr image-data))
     (return false))
 
-  (var color-palette ([] 16 auto-color))
+  (var color-palette (array 16 auto-color))
   (var num-colors-requested (unsigned char) (array-size color-palette))
   (var num-colors-attained (unsigned char)
     (auto-color-pick-colors-by-threshold (addr image-data) color-palette num-colors-requested))
@@ -729,12 +729,12 @@ Back to HSL: %3d %3d %3d\n"
                  (at i 1 color-palette)
                  (at i 2 color-palette)))
 
-  (var work-space ([] 16 auto-color-float))
+  (var work-space (array 16 auto-color-float))
   (auto-color-create-base16-theme-from-colors
    color-palette num-colors-attained work-space
    base16-colors-out)
 
-  (var base-16-color-short-names ([] (* (const char)))
+  (var base-16-color-short-names (array (addr (const char)))
     (array "DefaultBG"
            "LighterBG"
            "SelectionBG"

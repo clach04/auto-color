@@ -1,6 +1,6 @@
 [submodule "Dependencies/cakelisp"]
 	path = Dependencies/cakelisp
-	url = https://macoy.me/code/macoy/cakelisp.git
+	url = gitea@macoy.me:macoy/cakelisp.git
 [submodule "Dependencies/gamelib"]
 	path = Dependencies/gamelib
 	url = https://macoy.me/code/macoy/gamelib.git

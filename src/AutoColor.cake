@@ -145,7 +145,9 @@ License along with this library; if not, see <http://www.gnu.org/licenses/>.
 
   (add-c-build-dependency "UriUnescape.c")
 
-  (declare-extern-function uriUnescapeInPlaceEx (in-out (addr char) &return (addr (const char))))
+  (import "CHelpers.cake")
+  (extern-c (declare-extern-function uriUnescapeInPlaceEx
+                                     (in-out (addr char) &return (addr (const char)))))
 
   (defun auto-color-get-current-background-filename (wallpaper-out (addr char)
                                                      wallpaper-out-size (unsigned int)

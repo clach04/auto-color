@@ -1,7 +1,7 @@
 (import "AutoColor.cake")
 (c-import "<stdio.h>" "<string.h>")
 
-(defun main (num-arguments int arguments ([] (* char)) &return int)
+(defun main (num-arguments int arguments (array (addr char)) &return int)
   (set g-auto-color-should-print true)
   (when (> num-arguments 1)
     (when (= 0 (strcmp (at 1 arguments) "--license"))
@@ -10,7 +10,7 @@
   (fprintf stderr "Auto Color\nCopyright (c) 2021 Macoy Madson.\n
 Pass --license to see copyright and license info.\n")
 
-  (var base16-colors ([] 16 auto-color) (array 0))
+  (var base16-colors (array 16 auto-color) (array 0))
   (unless (auto-color-pick-from-current-background base16-colors)
     (return 1))
   (return 0))

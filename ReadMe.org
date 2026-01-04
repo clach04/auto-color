@@ -93,7 +93,7 @@ My inspiration for this project was from one of my [[https://macoy.me/code/macoy
 [[https://macoy.me/code/macoy/auto-base16-theme/media/branch/master/images/Example4.jpg]]
 
 This project is a reinvention of that past project. This new version solves several problems:
-- *Low dependencies.* My previous implementation relied on [[https://github.com/thefryscorer/schemer2][schemer2]], which is written in Go, and my color processor was written in Python. These two languages require pulling in a lot more dependencies than a tiny C library, and cannot be embedded in C/C++ applications
+- *Low dependencies.* My [[https://github.com/clach04/auto-base16-theme][previous implementation] relied on [[https://github.com/thefryscorer/schemer2][schemer2]], which is written in Go, and my color processor was written in Python. These two languages require pulling in a lot more dependencies than a tiny C library, and cannot be embedded in C/C++ applications
 - *Automatic.* I've found I enjoy themes which match my desktop most, but previous tools require manual steps to make this happen. This project will be easily embeddable and automatically scrape colors off the user's background
 - *First-class Windows support.* I'm committed to making this tool work on Windows, which tends to get less love from the FOSS community (in part because it's objectively less theme-able)
 
